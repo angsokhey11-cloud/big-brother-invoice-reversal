@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BIG BROTHER — Sale Return</title>
+<title>BIG BROTHER — Invoice Reversal</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;padding:12px;background:#eef2f7;color:#172033;font-family:Arial,sans-serif}
@@ -81,7 +81,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#2867d7;box-sh
 @media(max-width:400px){.search-grid{grid-template-columns:1fr}.actions{grid-template-columns:1fr 1fr}}
 
 /* ==========================================
-   SALE RETURN RECEIPT — same visual language as Invoice Generator
+   INVOICE REVERSAL RECEIPT — same visual language as Invoice Generator
 ========================================== */
 .receipt-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(10,24,42,.58);padding:12px;overflow:auto}
 .receipt-modal.open{display:flex;align-items:flex-start;justify-content:center}
@@ -95,7 +95,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#2867d7;box-sh
 .receipt-action:disabled{opacity:.65;cursor:wait}
 @media(max-width:600px){.receipt-modal{padding:5px}.receipt-content{padding:7px}.receipt-actions{grid-template-columns:1fr 1fr 1fr;padding:7px}.receipt-action{font-size:11px;min-height:42px}}
 
-/* SALE RETURN RECEIPT — match the BIG BROTHER Invoice Generator print template */
+/* INVOICE REVERSAL RECEIPT — match the BIG BROTHER Invoice Generator print template */
 .final-invoice{width:794px;max-width:100%;margin:0 auto;background:#fff;color:#222;padding:30px;font-family:Arial,sans-serif;box-shadow:none}
 .final-invoice *{box-sizing:border-box}
 .final-header{display:flex;justify-content:space-between;align-items:flex-start;gap:25px;min-height:78px}
@@ -126,18 +126,21 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#2867d7;box-sh
 .final-transaction-box{border:1px solid #999;padding:10px 11px;min-height:54px}.final-transaction-label{font-weight:800;margin-bottom:5px}.final-footer{text-align:center;color:#174a91;font-size:15px;font-style:italic;margin-top:28px}
 @media(max-width:600px){.final-invoice{padding:18px 14px}.final-header{gap:10px}.final-company-name{font-size:18px}.final-company{font-size:11px}.final-currency{font-size:10px}.final-invoice-title{font-size:24px;margin-bottom:18px}.final-bill-row{grid-template-columns:1fr 145px;gap:10px}.final-meta-no{font-size:18px}.final-meta-date{font-size:10px}.final-table{font-size:10px}.final-table th,.final-table td{padding:5px 4px}.final-table th:nth-child(1){width:28px}.final-table th:nth-child(3){width:50px}.final-table th:nth-child(4){width:68px}.final-table th:nth-child(5){width:72px}.final-bottom-grid{grid-template-columns:1fr 1fr;gap:10px}.final-transaction{gap:10px}.final-footer{font-size:12px}}
 @media print{body{background:#fff}.no-print{display:none!important}.final-invoice{border:0;box-shadow:none;width:100%;max-width:none}}
+
+.reversal-warning{margin-top:10px;padding:10px 12px;border-radius:8px;background:#fff7e6;border:1px solid #f0cd82;color:#7a5410;font-size:12px;line-height:1.45}
+.reversal-warning strong{color:#9a5c00}
 </style>
 </head>
 <body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <div class="calculator">
   <h1>BIG BROTHER</h1>
-  <div class="page-subtitle">Sale Return</div>
+  <div class="page-subtitle">Invoice Reversal</div>
 
   <div class="sr-title-row">
     <div>
-      <div class="section-title">Sale Return</div>
-      <div class="sr-subtitle">Return products from an existing Sales Database invoice.</div>
+      <div class="section-title">Invoice Reversal</div>
+      <div class="sr-subtitle">Reverse a full invoice or selected product quantities from an executed invoice.</div>
     </div>
     <div class="sr-badge">SALES DATABASE</div>
   </div>
@@ -154,7 +157,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#2867d7;box-sh
       </div>
       <div><button type="button" class="search-btn" onclick="loadSaleReturnInvoice()">🔎 Load Invoice</button></div>
     </div>
-    <div id="srStatus" class="status">Enter an Invoice No. and load the original sale.</div>
+    <div id="srStatus" class="status">Enter an Invoice No. and load the executed invoice.</div>
   </div>
 
   <div id="srInvoiceInfo" class="card hidden">
@@ -170,34 +173,35 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#2867d7;box-sh
   </div>
 
   <div id="srProductsCard" class="card hidden">
-    <div class="section-title">Products Sold</div>
+    <div class="section-title">Executed Invoice Products</div>
     <div class="product-list-head">
-      <span>Product</span><span>Sold</span><span>Returned</span><span>Available</span><span>Return Qty</span><span>Amount</span>
+      <span>Product</span><span>Original Qty</span><span>Reversed</span><span>Remaining</span><span>Reverse Qty</span><span>Amount</span>
     </div>
     <div class="sr-product-list" id="srProductsBody"></div>
-    <div class="total-row"><span>Total Sale Return</span><strong id="srTotalAmount">$0.00</strong></div>
+    <div class="total-row"><span>Total Reversal</span><strong id="srTotalAmount">$0.00</strong></div>
   </div>
 
   <div id="srDetailsCard" class="card details-card hidden">
-    <div class="section-title">Return Details</div>
+    <div class="section-title">Reversal Details</div>
     <div class="search-grid" style="grid-template-columns:1fr 1fr">
-      <div><label for="srReturnDate">Return Date</label><input type="date" id="srReturnDate"></div>
-      <div><label for="srReturnType">Return Type</label><select id="srReturnType"><option value="Customer Return">Customer Return</option><option value="Damaged Return">Damaged Return</option><option value="Other">Other</option></select></div>
+      <div><label for="srReturnDate">Reversal Date</label><input type="date" id="srReturnDate"></div>
+      <div><label for="srReturnType">Reversal Type</label><select id="srReturnType" onchange="handleReversalTypeChange()"><option value="Partial Reversal">Partial Reversal</option><option value="Full Reversal">Full Reversal</option></select></div>
     </div>
-    <div><label for="srReason">Reason</label><input type="text" id="srReason" placeholder="Why is the product being returned?"></div>
-    <div><label for="srNote">Note</label><textarea id="srNote" placeholder="Optional note for this sale return..."></textarea></div>
+    <div class="reversal-warning"><strong>Important:</strong> Full Reversal reverses every remaining product quantity. Partial Reversal reverses only the quantities you enter below.</div>
+    <div><label for="srReason">Reason</label><input type="text" id="srReason" placeholder="Why is this invoice being reversed?"></div>
+    <div><label for="srNote">Note</label><textarea id="srNote" placeholder="Optional note for this invoice reversal..."></textarea></div>
   </div>
 
   <div id="srActions" class="actions hidden">
     <button type="button" class="clear-btn" onclick="clearSaleReturn()">Clear</button>
-    <button type="button" class="save-btn" id="srSaveBtn" onclick="saveSaleReturn()">✓ Save Sale Return</button>
+    <button type="button" class="save-btn" id="srSaveBtn" onclick="saveSaleReturn()">✓ Execute Reversal</button>
   </div>
 </div>
 
 <div class="receipt-modal" id="srReceiptModal" aria-hidden="true">
   <div class="receipt-dialog">
     <div class="receipt-modal-head no-print">
-      <strong>Sale Return Receipt</strong>
+      <strong>Invoice Reversal Receipt</strong>
       <button type="button" onclick="closeSaleReturnReceipt()">×</button>
     </div>
     <div class="receipt-content" id="srReceiptContent"></div>
@@ -211,7 +215,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#2867d7;box-sh
 
 <script>
 /* ==========================================
-   SALE RETURN MODULE
+   INVOICE REVERSAL MODULE
 ========================================== */
 const SALES_DATABASE_API_URL = "https://script.google.com/macros/s/AKfycbyM5mUlz5SeMZ_oPJCo2FgLkPEcodAQ7wPl5wxAdrvfqLvsZLaHxiOtS02L1Q3ZRA3D/exec";
 const MASTER_DATABASE_API_URL = "https://script.google.com/macros/s/AKfycbzIjs-cNehMxWTZs3ZPAosseGUu1nqACTPo3S4-onLLEYnEgqP6AUK7p3jwb6MaFr7H0w/exec";
@@ -221,7 +225,7 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 /* ==========================================
-   SALE RETURN MODULE
+   INVOICE REVERSAL MODULE
    Sales Database -> existing invoice + returns
 ========================================== */
 let saleReturnInvoice = null;
@@ -430,7 +434,7 @@ function loadSaleReturnInvoice() {
     saleReturnInvoice = data;
 
     // Customer contact details live in the MASTER DATABASE.
-    // Enrich the loaded invoice so the Sale Return Receipt always shows
+    // Enrich the loaded invoice so the Invoice Reversal Receipt always shows
     // the same customer address + phone used by the Invoice Generator.
     enrichSaleReturnCustomerContact(data).then(() => {
       renderSaleReturnInvoice(saleReturnInvoice);
@@ -579,7 +583,7 @@ function renderSaleReturnInvoice(data) {
         <div class="sr-product-num">${returned}</div>
         <div class="sr-product-num sr-product-available">${available}</div>
         <div class="sr-product-input">
-          <input type="number" min="0" max="${available}" step="0.01" value="0" data-sr-index="${index}" data-available="${available}" data-price="${price}" oninput="calculateSaleReturnTotal()" ${available <= 0 ? "disabled" : ""}>
+          <input type="number" min="0" max="${available}" step="0.01" value="0" data-sr-index="${index}" data-line-id="${escapeHtml(item.lineId || "")}" data-available="${available}" data-price="${price}" oninput="calculateSaleReturnTotal()" ${available <= 0 ? "disabled" : ""}>
         </div>
         <div class="sr-product-amount" id="srAmount_${index}">${moneyForSaleReturn(0)}</div>`;
       tbody.appendChild(row);
@@ -591,6 +595,28 @@ function renderSaleReturnInvoice(data) {
   document.getElementById("srDetailsCard").style.display = "block";
   document.getElementById("srActions").style.display = "grid";
   setSaleReturnToday();
+  handleReversalTypeChange();
+}
+
+
+function handleReversalTypeChange() {
+  const type = document.getElementById("srReturnType")?.value || "Partial Reversal";
+  const full = type === "Full Reversal";
+
+  document.querySelectorAll("#srProductsBody input[data-sr-index]").forEach(input => {
+    const available = Math.max(0, Number(input.dataset.available) || 0);
+
+    if (full) {
+      input.value = available;
+      input.readOnly = true;
+      input.style.background = "#eef4fb";
+    } else {
+      input.value = 0;
+      input.readOnly = false;
+      input.style.background = "";
+    }
+  });
+
   calculateSaleReturnTotal();
 }
 
@@ -630,11 +656,12 @@ function buildSaleReturnRows() {
       customer: saleReturnInvoice.invoice.customer || "",
       locationCode: saleReturnInvoice.invoice.locationCode || "",
       salesperson: saleReturnInvoice.invoice.salesperson || "",
+      lineId: item.lineId || "",
       productCode: item.productCode || "",
       productName: item.productName || item.productCode || "",
       qty,
       unitPrice: Number(item.unitPrice) || 0,
-      returnType: document.getElementById("srReturnType")?.value || "Customer Return",
+      returnType: document.getElementById("srReturnType")?.value || "Partial Reversal",
       reason: document.getElementById("srReason")?.value.trim() || "",
       note: document.getElementById("srNote")?.value.trim() || ""
     });
@@ -674,7 +701,7 @@ function postSalesReturn(row) {
       if (settled) return;
       settled = true;
       setTimeout(() => { form.remove(); iframe.remove(); }, 800);
-      if (ok) resolve(); else reject(error || new Error("Sale Return save timed out."));
+      if (ok) resolve(); else reject(error || new Error("Invoice Reversal save timed out."));
     };
 
     try { form.submit(); } catch (error) { finish(false, error); return; }
@@ -690,27 +717,34 @@ async function saveSaleReturn() {
 
   const rows = buildSaleReturnRows();
   if (!rows.length) {
-    alert("Please enter Return Qty for at least one product.");
+    alert("Please enter Reversed Qty for at least one product.");
     return;
   }
 
   const returnDate = document.getElementById("srReturnDate")?.value || "";
   if (!returnDate) {
-    alert("Please select the Return Date.");
+    alert("Please select the Reversal Date.");
+    return;
+  }
+
+  const reason = document.getElementById("srReason")?.value.trim() || "";
+  if (!reason) {
+    alert("Please enter a reason for this invoice reversal.");
+    document.getElementById("srReason")?.focus();
     return;
   }
 
   const total = calculateSaleReturnTotal();
   const confirmed = confirm(
-    "Save this Sale Return?\n\n" +
+    "Execute this Invoice Reversal?\n\n" +
     "Invoice No.: " + saleReturnInvoice.invoice.invoiceNo + "\n" +
-    "Products returned: " + rows.length + "\n" +
-    "Return Amount: " + moneyForSaleReturn(total)
+    "Product lines reversed: " + rows.length + "\n" +
+    "Reversal Amount: " + moneyForSaleReturn(total)
   );
   if (!confirmed) return;
 
   const button = document.getElementById("srSaveBtn");
-  if (button) { button.disabled = true; button.innerHTML = "⏳ Saving..."; }
+  if (button) { button.disabled = true; button.innerHTML = "⏳ Reversing..."; }
 
   try {
     for (const row of rows) {
@@ -723,16 +757,16 @@ async function saveSaleReturn() {
     openSaleReturnReceipt();
 
     setSaleReturnStatus(
-      "Sale Return saved successfully. Receipt is ready to print or share.",
+      "Invoice Reversal saved successfully. Invoice History will show the executed/net invoice.",
       "success"
     );
     clearSaleReturn(true);
   } catch (error) {
-    console.error("Sale Return save failed:", error);
-    setSaleReturnStatus("Sale Return could not be fully saved. Please check the Returns sheet.", "error");
-    alert("Could not save the Sale Return.\n\n" + (error?.message || "Please try again."));
+    console.error("Invoice Reversal save failed:", error);
+    setSaleReturnStatus("Invoice Reversal could not be fully saved. Please check the Returns sheet.", "error");
+    alert("Could not save the Invoice Reversal.\n\n" + (error?.message || "Please try again."));
   } finally {
-    if (button) { button.disabled = false; button.innerHTML = "✓ Save Sale Return"; }
+    if (button) { button.disabled = false; button.innerHTML = "✓ Execute Reversal"; }
   }
 }
 
@@ -750,7 +784,7 @@ function buildSaleReturnReceiptState(rows, total) {
     salesperson: inv.salesperson || "-",
     currency: inv.currency || "USD",
     exchangeRate: Number(inv.exchangeRate || inv.rate || 0),
-    returnType: document.getElementById("srReturnType")?.value || "Customer Return",
+    returnType: document.getElementById("srReturnType")?.value || "Partial Reversal",
     reason: document.getElementById("srReason")?.value.trim() || "",
     note: document.getElementById("srNote")?.value.trim() || "",
     total: Number(total) || 0,
@@ -807,7 +841,7 @@ function buildSaleReturnReceiptHtml(state) {
       </div>
 
       <div class="final-title-line"></div>
-      <div class="final-invoice-title">SALE RETURN</div>
+      <div class="final-invoice-title">INVOICE REVERSAL</div>
 
       <div class="final-bill-row">
         <div class="final-bill">
@@ -817,7 +851,7 @@ function buildSaleReturnReceiptHtml(state) {
         <div class="final-meta">
           <div class="final-meta-no">${esc(state.invoiceNo)}</div>
           <div class="final-meta-date">Original Invoice Date: ${esc(state.invoiceDate)}</div>
-          <div class="final-meta-date">Return Date: ${esc(state.returnDate)}</div>
+          <div class="final-meta-date">Reversal Date: ${esc(state.returnDate)}</div>
         </div>
       </div>
 
@@ -831,12 +865,12 @@ function buildSaleReturnReceiptHtml(state) {
       <div class="final-bottom-grid">
         <div class="final-notes">
           <div class="final-notes-title">Note:</div>
-          <div class="final-note-line"><span class="final-note-label">Return Type</span>: ${esc(state.returnType)}</div>
+          <div class="final-note-line"><span class="final-note-label">Reversal Type</span>: ${esc(state.returnType)}</div>
           <div class="final-note-line"><span class="final-note-label">Reason</span>: ${esc(reason)}</div>
           <div class="final-note-line"><span class="final-note-label">Note</span>: ${esc(note)}</div>
         </div>
         <div class="final-summary">
-          <div class="final-summary-row"><span>Total Sale Return</span><span class="final-summary-value">${money(state.total)}</span></div>
+          <div class="final-summary-row"><span>Total Reversal</span><span class="final-summary-value">${money(state.total)}</span></div>
         </div>
       </div>
 
@@ -846,7 +880,7 @@ function buildSaleReturnReceiptHtml(state) {
           <div>${esc(state.salesperson || "-")}</div>
         </div>
         <div class="final-transaction-box">
-          <div class="final-transaction-label">Return Type</div>
+          <div class="final-transaction-label">Reversal Type</div>
           <div>${esc(state.returnType || "-")}</div>
         </div>
       </div>
@@ -876,11 +910,11 @@ function getCurrentSaleReturnReceiptElement() {
 function printSaleReturnReceipt(event) {
   if (event) { event.preventDefault(); event.stopPropagation(); }
   const receipt = getCurrentSaleReturnReceiptElement();
-  if (!receipt) { alert("Please save a Sale Return first."); return; }
+  if (!receipt) { alert("Please save a Invoice Reversal first."); return; }
   const win = window.open("", "_blank");
   if (!win) { alert("Please allow pop-ups to print the receipt."); return; }
   win.document.open();
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>BIG BROTHER Sale Return</title><style>
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>BIG BROTHER Invoice Reversal</title><style>
     @page{size:A4;margin:10mm}
     html,body{margin:0;padding:0;background:#fff}
     body{font-family:Arial,sans-serif;color:#222}
@@ -910,10 +944,10 @@ async function shareSaleReturnToDevice(event) {
   try {
     if(button){button.disabled=true;button.innerHTML="⏳ Preparing...";}
     const blob=await createSaleReturnReceiptImage();
-    const invoiceNo=(document.querySelector("#saleReturnReceiptPrintArea .final-meta-no")?.textContent||"Sale-Return").trim();
-    const file=new File([blob],`BIG-BROTHER-SALE-RETURN-${invoiceNo.replace(/[^a-z0-9_-]+/gi,"-")}.png`,{type:"image/png"});
+    const invoiceNo=(document.querySelector("#saleReturnReceiptPrintArea .final-meta-no")?.textContent||"Invoice-Reversal").trim();
+    const file=new File([blob],`BIG-BROTHER-INVOICE-REVERSAL-${invoiceNo.replace(/[^a-z0-9_-]+/gi,"-")}.png`,{type:"image/png"});
     if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-      await navigator.share({files:[file],title:"BIG BROTHER Sale Return Receipt",text:"Sale Return Receipt - "+invoiceNo});
+      await navigator.share({files:[file],title:"BIG BROTHER Invoice Reversal Receipt",text:"Invoice Reversal Receipt - "+invoiceNo});
     } else {
       const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
       alert("Receipt image saved to this device.");
@@ -928,11 +962,11 @@ async function shareSaleReturnToTelegram(event) {
   try {
     if(button){button.disabled=true;button.innerHTML="⏳ Preparing...";}
     const blob=await createSaleReturnReceiptImage();
-    const invoiceNo=(document.querySelector("#saleReturnReceiptPrintArea .final-meta-no")?.textContent||"Sale Return").trim();
-    const file=new File([blob],`BIG-BROTHER-SALE-RETURN-${invoiceNo.replace(/[^a-z0-9_-]+/gi,"-")}.png`,{type:"image/png"});
-    const text=`BIG BROTHER Sale Return Receipt\nOriginal Invoice: ${invoiceNo}`;
+    const invoiceNo=(document.querySelector("#saleReturnReceiptPrintArea .final-meta-no")?.textContent||"Invoice Reversal").trim();
+    const file=new File([blob],`BIG-BROTHER-INVOICE-REVERSAL-${invoiceNo.replace(/[^a-z0-9_-]+/gi,"-")}.png`,{type:"image/png"});
+    const text=`BIG BROTHER Invoice Reversal Receipt\nOriginal Invoice: ${invoiceNo}`;
     if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-      await navigator.share({files:[file],title:"BIG BROTHER Sale Return Receipt",text});
+      await navigator.share({files:[file],title:"BIG BROTHER Invoice Reversal Receipt",text});
     } else {
       const url="https://t.me/share/url?url=&text="+encodeURIComponent(text);
       window.open(url,"_blank","noopener,noreferrer");
@@ -947,10 +981,10 @@ function clearSaleReturn(keepStatus) {
   const ids = ["srInvoiceNo","srReason","srNote"];
   ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
   const type = document.getElementById("srReturnType");
-  if (type) type.value = "Customer Return";
+  if (type) type.value = "Partial Reversal";
   setSaleReturnToday();
   hideSaleReturnResults();
-  if (!keepStatus) setSaleReturnStatus("Enter an Invoice No. and load the original sale.", "normal");
+  if (!keepStatus) setSaleReturnStatus("Enter an Invoice No. and load the executed invoice.", "normal");
 }
 
 setSaleReturnToday();
