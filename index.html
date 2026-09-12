@@ -1,127 +1,5507 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="en">
+
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BIG BROTHER — Invoice Reversal Supabase</title>
-<style>html,body{margin:0;min-height:100%;background:#eef2f7;font-family:Arial,sans-serif}.bb-loader{min-height:100vh;display:flex;align-items:center;justify-content:center}.bb-card{background:#fff;border:1px solid #d9e2ef;border-radius:14px;padding:22px 28px;box-shadow:0 8px 30px #173a6615;color:#17457a;font-weight:800}.bb-sub{margin-top:6px;color:#6b7280;font-size:12px;font-weight:600}</style>
-</head>
-<body>
-<div class="bb-loader"><div class="bb-card">Loading BIG BROTHER Invoice Reversal…<div class="bb-sub">Supabase Auth · atomic reversal</div></div></div>
-<script>
-(async function(){
-  try{
-    const response=await fetch('legacy-google-v1.html?v=20260910-1',{cache:'no-store'});
-    if(!response.ok)throw new Error('Could not load Invoice Reversal source.');
-    let html=await response.text();
 
-    const adapter='<scr'+'ipt src="supabase-invoice-reversal-adapter.js?v=20260910-1"></scr'+'ipt>';
-    const headClose=html.toLowerCase().indexOf('</head>');
-    if(headClose<0)throw new Error('Invoice Reversal source is missing </head>.');
-    html=html.slice(0,headClose)+adapter+'\n'+html.slice(headClose);
+<meta charset="UTF-8">
 
-    const patch=`<scr`+`ipt>
-(function(){
-  const A=window.BBInvoiceReversalAdapter;
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1"
+>
 
-  loadRecentSaleReturnInvoices=async function(){
-    if(saleReturnInvoiceListLoaded)return;
-    const dropdown=document.getElementById('srInvoiceDropdown');
-    if(dropdown)dropdown.innerHTML='<div class="bb-sr-invoice-empty">Loading recent invoices...</div>';
-    try{
-      const data=await A.recent(30);
-      recentSaleReturnInvoices=Array.isArray(data?.invoices)?data.invoices.map(v=>String(v||'').trim()).filter(Boolean):[];
-      saleReturnInvoiceListLoaded=true;
-      renderSaleReturnInvoiceDropdown(document.getElementById('srInvoiceNo')?.value||'');
-    }catch(error){
-      if(dropdown)dropdown.innerHTML='<div class="bb-sr-invoice-empty">'+escapeHtml(error?.message||'Could not load recent invoices.')+'</div>';
-      setSaleReturnStatus(error?.message||'Supabase sign-in or Invoice Reversal access is required.','error');
-    }
-  };
+<title>
+  BIG BROTHER — Invoice Reversal V2
+</title>
 
-  loadSaleReturnInvoice=async function(){
-    const invoiceNo=String(document.getElementById('srInvoiceNo')?.value||'').trim();
-    if(!invoiceNo){alert('Please enter an Invoice No.');return;}
-    setSaleReturnStatus('Loading invoice from Supabase...','normal');
-    try{
-      const data=await A.detail(invoiceNo);
-      if(!data?.success)throw new Error(data?.error||'Invoice was not found.');
-      saleReturnInvoice=data;
-      renderSaleReturnInvoice(data);
-      setSaleReturnStatus('Invoice loaded from Supabase. Enter the quantity you want to reverse.','success');
-    }catch(error){
-      saleReturnInvoice=null;
-      hideSaleReturnResults();
-      setSaleReturnStatus(error?.message||'Could not load invoice from Supabase.','error');
-    }
-  };
 
-  saveSaleReturn=async function(){
-    if(!saleReturnInvoice){alert('Please load an existing invoice first.');return;}
-    const rows=buildSaleReturnRows();
-    if(!rows.length){alert('Please enter Reversed Qty for at least one product.');return;}
-    const returnDate=document.getElementById('srReturnDate')?.value||'';
-    if(!returnDate){alert('Please select the Reversal Date.');return;}
-    const reason=document.getElementById('srReason')?.value.trim()||'';
-    if(!reason){alert('Please enter a reason for this invoice reversal.');document.getElementById('srReason')?.focus();return;}
-    const returnType=document.getElementById('srReturnType')?.value||'Partial Reversal';
-    const note=document.getElementById('srNote')?.value.trim()||'';
-    const total=calculateSaleReturnTotal();
-    if(!confirm('Execute this Invoice Reversal?\n\nInvoice No.: '+saleReturnInvoice.invoice.invoiceNo+'\nProduct lines reversed: '+rows.length+'\nReversal Amount: '+moneyForSaleReturn(total)))return;
+<style>
 
-    const button=document.getElementById('srSaveBtn');
-    if(button){button.disabled=true;button.innerHTML='⏳ Reversing...';}
-    try{
-      const result=await A.save({
-        invoiceNo:saleReturnInvoice.invoice.invoiceNo,
-        returnDate,
-        returnType,
-        reason,
-        note,
-        lines:rows.map(r=>({lineId:r.lineId,qty:Number(r.qty)||0}))
-      });
-      if(!result?.success)throw new Error(result?.error||'Invoice Reversal could not be saved.');
-      const serverTotal=Number(result.totalAmount);
-      const receiptState=buildSaleReturnReceiptState(rows,Number.isFinite(serverTotal)?serverTotal:total);
-      document.getElementById('srReceiptContent').innerHTML=buildSaleReturnReceiptHtml(receiptState);
-      openSaleReturnReceipt();
-      setSaleReturnStatus('Invoice Reversal saved successfully in Supabase. Invoice History will show the reversal.','success');
-      saleReturnInvoiceListLoaded=false;
-      clearSaleReturn(true);
-    }catch(error){
-      console.error('Invoice Reversal save failed:',error);
-      setSaleReturnStatus(error?.message||'Invoice Reversal could not be saved.','error');
-      alert('Could not save the Invoice Reversal.\n\n'+(error?.message||'Please try again.'));
-    }finally{
-      if(button){button.disabled=false;button.innerHTML='✓ Execute Reversal';}
-    }
-  };
+*{
+  box-sizing:border-box;
+}
 
-  document.addEventListener('DOMContentLoaded',async function(){
-    const badge=document.querySelector('.sr-badge');
-    if(badge)badge.textContent='SUPABASE';
-    try{
-      await A.ensureSession();
-      const profile=await A.accessProfile();
-      const name=profile?.staff?.staffName||profile?.user?.email||'Signed in';
-      if(badge)badge.title='Supabase · '+name;
-    }catch(error){
-      setSaleReturnStatus(error?.message||'Please sign in to BIG BROTHER first.','error');
-    }
-  });
-})();
-</scr`+`ipt>`;
 
-    const bodyClose=html.toLowerCase().lastIndexOf('</body>');
-    if(bodyClose<0)throw new Error('Invoice Reversal source is missing </body>.');
-    html=html.slice(0,bodyClose)+patch+'\n'+html.slice(bodyClose);
-    html=html.replace('<title>BIG BROTHER — Invoice Reversal</title>','<title>BIG BROTHER — Invoice Reversal Supabase</title>');
+:root{
 
-    document.open();document.write(html);document.close();
-  }catch(error){
-    console.error(error);
-    document.body.innerHTML='<div class="bb-loader"><div class="bb-card">Could not open Invoice Reversal<div class="bb-sub">'+String(error?.message||error)+'</div></div></div>';
+  --navy:#17457a;
+  --navy-dark:#123861;
+  --blue:#2f6fed;
+  --bg:#eef3f8;
+  --card:#ffffff;
+  --text:#172b4d;
+  --muted:#6b7f95;
+  --border:#d4dfec;
+  --green:#15875c;
+  --green-bg:#eaf8f2;
+  --purple:#7450a8;
+  --purple-bg:#f3edfb;
+  --orange:#a76400;
+  --orange-bg:#fff5df;
+  --red:#b42318;
+  --red-bg:#fff0ef;
+
+}
+
+
+html,
+body{
+
+  margin:0;
+
+  min-height:100%;
+
+  background:var(--bg);
+
+  color:var(--text);
+
+  font-family:
+    "Segoe UI",
+    Tahoma,
+    Arial,
+    sans-serif;
+
+}
+
+
+body{
+
+  padding:14px;
+
+}
+
+
+button,
+input,
+select,
+textarea{
+
+  font:inherit;
+
+}
+
+
+button{
+
+  cursor:pointer;
+
+}
+
+
+.app{
+
+  width:min(
+    1260px,
+    100%
+  );
+
+  margin:0 auto;
+
+}
+
+
+.header{
+
+  display:flex;
+
+  align-items:flex-start;
+
+  justify-content:space-between;
+
+  gap:18px;
+
+  margin-bottom:14px;
+
+}
+
+
+.brand h1{
+
+  margin:0;
+
+  color:var(--navy);
+
+  font-size:27px;
+
+  letter-spacing:.7px;
+
+}
+
+
+.brand p{
+
+  margin:4px 0 0;
+
+  color:var(--muted);
+
+  font-size:12px;
+
+}
+
+
+.badge{
+
+  border-radius:999px;
+
+  padding:7px 11px;
+
+  background:#e7f0fb;
+
+  color:var(--navy);
+
+  font-size:10px;
+
+  font-weight:900;
+
+  white-space:nowrap;
+
+}
+
+
+.card{
+
+  background:var(--card);
+
+  border:1px solid var(--border);
+
+  border-radius:13px;
+
+  box-shadow:
+    0 4px 16px
+    rgba(27,54,88,.05);
+
+  margin-bottom:12px;
+
+}
+
+
+.card-title{
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:space-between;
+
+  gap:10px;
+
+  padding:12px 14px;
+
+  border-bottom:
+    1px solid
+    #e4ebf3;
+
+  color:var(--navy);
+
+  font-size:14px;
+
+  font-weight:900;
+
+}
+
+
+.card-body{
+
+  padding:13px 14px;
+
+}
+
+
+.search-grid{
+
+  display:grid;
+
+  grid-template-columns:
+    minmax(0,1fr)
+    150px;
+
+  gap:8px;
+
+  align-items:end;
+
+}
+
+
+.field label{
+
+  display:block;
+
+  margin-bottom:4px;
+
+  color:#536d87;
+
+  font-size:10px;
+
+  font-weight:900;
+
+  text-transform:uppercase;
+
+}
+
+
+input,
+select,
+textarea{
+
+  width:100%;
+
+  border:
+    1px solid
+    #bfd0e2;
+
+  border-radius:8px;
+
+  background:#fff;
+
+  color:#18314e;
+
+}
+
+
+input,
+select{
+
+  min-height:39px;
+
+  padding:8px 10px;
+
+}
+
+
+textarea{
+
+  min-height:72px;
+
+  padding:9px 10px;
+
+  resize:vertical;
+
+}
+
+
+input:focus,
+select:focus,
+textarea:focus{
+
+  outline:none;
+
+  border-color:var(--blue);
+
+  box-shadow:
+    0 0 0 3px
+    rgba(47,111,237,.10);
+
+}
+
+
+.primary-btn{
+
+  min-height:39px;
+
+  border:0;
+
+  border-radius:8px;
+
+  padding:8px 13px;
+
+  background:var(--navy);
+
+  color:#fff;
+
+  font-weight:900;
+
+}
+
+
+.primary-btn:hover{
+
+  background:#113d70;
+
+}
+
+
+.secondary-btn{
+
+  min-height:39px;
+
+  border:
+    1px solid
+    #c8d5e4;
+
+  border-radius:8px;
+
+  padding:8px 13px;
+
+  background:#fff;
+
+  color:var(--navy);
+
+  font-weight:800;
+
+}
+
+
+.danger-btn{
+
+  min-height:42px;
+
+  border:0;
+
+  border-radius:9px;
+
+  padding:9px 15px;
+
+  background:#b42318;
+
+  color:#fff;
+
+  font-weight:900;
+
+}
+
+
+.save-btn{
+
+  min-height:45px;
+
+  border:0;
+
+  border-radius:9px;
+
+  padding:9px 16px;
+
+  background:linear-gradient(
+    135deg,
+    #1d548f,
+    #286fbd
+  );
+
+  color:#fff;
+
+  font-weight:900;
+
+  box-shadow:
+    0 5px 13px
+    rgba(27,79,135,.18);
+
+}
+
+
+button:disabled{
+
+  opacity:.52;
+
+  cursor:not-allowed;
+
+}
+
+
+.invoice-picker{
+
+  position:relative;
+
+}
+
+
+.invoice-input-wrap{
+
+  display:flex;
+
+  position:relative;
+
+}
+
+
+.invoice-input-wrap input{
+
+  padding-right:42px;
+
+  font-weight:800;
+
+}
+
+
+.dropdown-toggle{
+
+  position:absolute;
+
+  right:0;
+
+  top:0;
+
+  width:40px;
+
+  height:100%;
+
+  border:0;
+
+  border-left:
+    1px solid
+    #d8e3ee;
+
+  border-radius:
+    0 8px 8px 0;
+
+  background:#f5f8fb;
+
+  color:var(--navy);
+
+  font-weight:900;
+
+}
+
+
+.invoice-dropdown{
+
+  display:none;
+
+  position:absolute;
+
+  z-index:1000;
+
+  left:0;
+
+  right:0;
+
+  top:calc(
+    100% + 4px
+  );
+
+  max-height:290px;
+
+  overflow:auto;
+
+  background:#fff;
+
+  border:
+    1px solid
+    #cbd8e6;
+
+  border-radius:9px;
+
+  box-shadow:
+    0 12px 32px
+    rgba(19,54,91,.18);
+
+}
+
+
+.invoice-dropdown.open{
+
+  display:block;
+
+}
+
+
+.invoice-option{
+
+  width:100%;
+
+  border:0;
+
+  border-bottom:
+    1px solid
+    #edf1f5;
+
+  background:#fff;
+
+  padding:9px 11px;
+
+  text-align:left;
+
+}
+
+
+.invoice-option:hover{
+
+  background:#edf5ff;
+
+}
+
+
+.invoice-option:last-child{
+
+  border-bottom:0;
+
+}
+
+
+.invoice-option-top{
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:space-between;
+
+  gap:8px;
+
+}
+
+
+.invoice-option-no{
+
+  color:var(--navy);
+
+  font-size:12px;
+
+  font-weight:900;
+
+}
+
+
+.invoice-option-date{
+
+  color:#718297;
+
+  font-size:10px;
+
+}
+
+
+.invoice-option-bottom{
+
+  display:flex;
+
+  justify-content:space-between;
+
+  gap:8px;
+
+  margin-top:3px;
+
+  color:#718297;
+
+  font-size:9px;
+
+}
+
+
+.invoice-option.full{
+
+  opacity:.62;
+
+}
+
+
+.empty{
+
+  padding:14px;
+
+  color:#718297;
+
+  font-size:11px;
+
+  text-align:center;
+
+}
+
+
+.status{
+
+  display:none;
+
+  margin-top:9px;
+
+  border-radius:8px;
+
+  padding:8px 10px;
+
+  font-size:11px;
+
+  font-weight:700;
+
+}
+
+
+.status.show{
+
+  display:block;
+
+}
+
+
+.status.normal{
+
+  background:#eef5fc;
+
+  color:#42617d;
+
+}
+
+
+.status.success{
+
+  background:var(--green-bg);
+
+  color:#126b4a;
+
+}
+
+
+.status.error{
+
+  background:var(--red-bg);
+
+  color:var(--red);
+
+}
+
+
+.status.warning{
+
+  background:var(--orange-bg);
+
+  color:var(--orange);
+
+}
+
+
+.hidden{
+
+  display:none !important;
+
+}
+
+
+.invoice-meta{
+
+  display:grid;
+
+  grid-template-columns:
+    repeat(
+      6,
+      minmax(0,1fr)
+    );
+
+  gap:7px;
+
+}
+
+
+.meta-box{
+
+  border:
+    1px solid
+    #e1e8f0;
+
+  border-radius:8px;
+
+  background:#fafcfe;
+
+  padding:8px 9px;
+
+  min-height:55px;
+
+}
+
+
+.meta-box span{
+
+  display:block;
+
+  color:#73869a;
+
+  font-size:8px;
+
+  font-weight:900;
+
+  text-transform:uppercase;
+
+}
+
+
+.meta-box strong{
+
+  display:block;
+
+  margin-top:4px;
+
+  color:#183b67;
+
+  font-size:11px;
+
+  line-height:1.25;
+
+  word-break:break-word;
+
+}
+
+
+.mode-chip{
+
+  display:inline-flex;
+
+  align-items:center;
+
+  border-radius:999px;
+
+  padding:4px 7px;
+
+  font-size:8px;
+
+  font-weight:900;
+
+}
+
+
+.mode-direct{
+
+  background:#eaf3ff;
+
+  color:#1d5da4;
+
+}
+
+
+.mode-batch{
+
+  background:#f1ecfa;
+
+  color:#68459b;
+
+}
+
+
+.table-wrap{
+
+  overflow:auto;
+
+}
+
+
+.products-table{
+
+  width:100%;
+
+  border-collapse:collapse;
+
+  min-width:1030px;
+
+  table-layout:fixed;
+
+}
+
+
+.products-table th{
+
+  background:#f1f6fb;
+
+  color:#48627e;
+
+  padding:8px 6px;
+
+  border-bottom:
+    1px solid
+    #d9e4ee;
+
+  font-size:8px;
+
+  text-transform:uppercase;
+
+  text-align:center;
+
+}
+
+
+.products-table th:first-child{
+
+  text-align:left;
+
+}
+
+
+.products-table td{
+
+  padding:8px 6px;
+
+  border-bottom:
+    1px solid
+    #e5ebf2;
+
+  vertical-align:middle;
+
+  font-size:10px;
+
+}
+
+
+.products-table tr:last-child td{
+
+  border-bottom:0;
+
+}
+
+
+.product-name{
+
+  color:#173b70;
+
+  font-size:11px;
+
+  font-weight:900;
+
+}
+
+
+.product-code{
+
+  margin-top:3px;
+
+  color:#718297;
+
+  font-size:8px;
+
+}
+
+
+.center{
+
+  text-align:center;
+
+}
+
+
+.right{
+
+  text-align:right;
+
+}
+
+
+.qty-input{
+
+  width:78px;
+
+  min-height:31px;
+
+  padding:4px 5px;
+
+  text-align:center;
+
+  font-size:10px;
+
+}
+
+
+.qty-input[readonly]{
+
+  background:#edf2f7;
+
+  color:#52667a;
+
+}
+
+
+.source-summary{
+
+  min-width:210px;
+
+}
+
+
+.source-chip{
+
+  display:inline-flex;
+
+  align-items:center;
+
+  border-radius:999px;
+
+  padding:4px 7px;
+
+  margin:2px;
+
+  font-size:8px;
+
+  font-weight:900;
+
+}
+
+
+.source-purchased{
+
+  background:#e8f2ff;
+
+  color:#165a9f;
+
+}
+
+
+.source-zero{
+
+  background:var(--purple-bg);
+
+  color:var(--purple);
+
+}
+
+
+.source-batch{
+
+  background:#eef1f4;
+
+  color:#52667a;
+
+}
+
+
+.source-detail{
+
+  margin-top:5px;
+
+  color:#6b7f93;
+
+  font-size:8px;
+
+  line-height:1.45;
+
+}
+
+
+.mixed-controls{
+
+  display:grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap:5px;
+
+  margin-top:5px;
+
+}
+
+
+.mixed-control label{
+
+  display:block;
+
+  margin-bottom:2px;
+
+  color:#6e8092;
+
+  font-size:7px;
+
+  font-weight:900;
+
+  text-transform:uppercase;
+
+}
+
+
+.mixed-control input{
+
+  min-height:29px;
+
+  padding:4px 5px;
+
+  font-size:9px;
+
+  text-align:center;
+
+}
+
+
+.line-warning{
+
+  margin-top:4px;
+
+  color:var(--orange);
+
+  font-size:8px;
+
+  font-weight:700;
+
+}
+
+
+.line-error{
+
+  margin-top:4px;
+
+  color:var(--red);
+
+  font-size:8px;
+
+  font-weight:700;
+
+}
+
+
+.line-ok{
+
+  margin-top:4px;
+
+  color:var(--green);
+
+  font-size:8px;
+
+  font-weight:700;
+
+}
+
+
+.fully-reversed{
+
+  opacity:.55;
+
+  background:#fafafa;
+
+}
+
+
+.controls-grid{
+
+  display:grid;
+
+  grid-template-columns:
+    170px
+    170px
+    minmax(220px,1fr);
+
+  gap:8px;
+
+  align-items:end;
+
+}
+
+
+.note-grid{
+
+  display:grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap:8px;
+
+  margin-top:9px;
+
+}
+
+
+.total-panel{
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:flex-end;
+
+  gap:14px;
+
+  margin-top:12px;
+
+  border-top:
+    1px solid
+    #e1e8f0;
+
+  padding-top:10px;
+
+}
+
+
+.total-label{
+
+  color:#60758b;
+
+  font-size:11px;
+
+  font-weight:800;
+
+}
+
+
+.total-value{
+
+  color:var(--navy);
+
+  font-size:23px;
+
+  font-weight:900;
+
+}
+
+
+.actions{
+
+  display:flex;
+
+  justify-content:flex-end;
+
+  gap:8px;
+
+  flex-wrap:wrap;
+
+  margin-top:12px;
+
+}
+
+
+.source-legend{
+
+  display:flex;
+
+  flex-wrap:wrap;
+
+  align-items:center;
+
+  gap:5px;
+
+  padding:8px 12px;
+
+  border-radius:8px;
+
+  background:#f8fafc;
+
+  color:#66788c;
+
+  font-size:9px;
+
+}
+
+
+.receipt-modal{
+
+  display:none;
+
+  position:fixed;
+
+  inset:0;
+
+  z-index:9999;
+
+  background:
+    rgba(
+      13,
+      32,
+      54,
+      .62
+    );
+
+  padding:15px;
+
+  overflow:auto;
+
+}
+
+
+.receipt-modal.open{
+
+  display:flex;
+
+  justify-content:center;
+
+  align-items:flex-start;
+
+}
+
+
+.receipt-dialog{
+
+  width:min(
+    760px,
+    100%
+  );
+
+  margin:20px auto;
+
+  border-radius:14px;
+
+  background:#fff;
+
+  overflow:hidden;
+
+  box-shadow:
+    0 18px 60px
+    rgba(0,0,0,.28);
+
+}
+
+
+.receipt-head{
+
+  display:flex;
+
+  justify-content:space-between;
+
+  align-items:center;
+
+  gap:10px;
+
+  padding:13px 15px;
+
+  background:var(--navy);
+
+  color:#fff;
+
+  font-weight:900;
+
+}
+
+
+.receipt-close{
+
+  border:0;
+
+  background:transparent;
+
+  color:#fff;
+
+  font-size:24px;
+
+}
+
+
+.receipt-body{
+
+  padding:18px;
+
+}
+
+
+.receipt-title{
+
+  text-align:center;
+
+  margin:0;
+
+  color:var(--navy);
+
+  font-size:22px;
+
+}
+
+
+.receipt-sub{
+
+  margin-top:4px;
+
+  text-align:center;
+
+  color:#6f8093;
+
+  font-size:10px;
+
+}
+
+
+.receipt-meta{
+
+  display:grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0,1fr)
+    );
+
+  gap:7px;
+
+  margin-top:15px;
+
+}
+
+
+.receipt-box{
+
+  border:
+    1px solid
+    #dce5ef;
+
+  border-radius:8px;
+
+  padding:8px 9px;
+
+}
+
+
+.receipt-box span{
+
+  display:block;
+
+  color:#75879a;
+
+  font-size:8px;
+
+  text-transform:uppercase;
+
+  font-weight:900;
+
+}
+
+
+.receipt-box strong{
+
+  display:block;
+
+  margin-top:3px;
+
+  color:#173b70;
+
+  font-size:12px;
+
+}
+
+
+.receipt-table{
+
+  width:100%;
+
+  border-collapse:collapse;
+
+  margin-top:15px;
+
+  font-size:10px;
+
+}
+
+
+.receipt-table th,
+.receipt-table td{
+
+  border:
+    1px solid
+    #d5dee8;
+
+  padding:7px;
+
+}
+
+
+.receipt-table th{
+
+  background:#edf4fb;
+
+  color:#3d5c7e;
+
+  font-size:8px;
+
+}
+
+
+.receipt-total{
+
+  display:flex;
+
+  justify-content:flex-end;
+
+  gap:15px;
+
+  margin-top:12px;
+
+  color:var(--navy);
+
+  font-weight:900;
+
+}
+
+
+.receipt-actions{
+
+  display:flex;
+
+  justify-content:flex-end;
+
+  gap:7px;
+
+  padding:11px 15px;
+
+  background:#f4f7fa;
+
+}
+
+
+@media(max-width:900px){
+
+  .invoice-meta{
+
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0,1fr)
+      );
+
   }
+
+
+  .controls-grid{
+
+    grid-template-columns:
+      1fr 1fr;
+
+  }
+
+
+  .controls-grid
+  .reason-field{
+
+    grid-column:
+      1 / -1;
+
+  }
+
+}
+
+
+@media(max-width:600px){
+
+  body{
+
+    padding:6px;
+
+  }
+
+
+  .header{
+
+    flex-direction:column;
+
+    gap:7px;
+
+  }
+
+
+  .brand h1{
+
+    font-size:22px;
+
+  }
+
+
+  .search-grid{
+
+    grid-template-columns:1fr;
+
+  }
+
+
+  .invoice-meta{
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0,1fr)
+      );
+
+  }
+
+
+  .controls-grid,
+  .note-grid{
+
+    grid-template-columns:1fr;
+
+  }
+
+
+  .controls-grid
+  .reason-field{
+
+    grid-column:auto;
+
+  }
+
+
+  .receipt-meta{
+
+    grid-template-columns:1fr 1fr;
+
+  }
+
+}
+
+
+@media print{
+
+  body{
+
+    background:#fff;
+
+    padding:0;
+
+  }
+
+
+  body > .app{
+
+    display:none;
+
+  }
+
+
+  .receipt-modal{
+
+    display:block !important;
+
+    position:static;
+
+    padding:0;
+
+    background:#fff;
+
+  }
+
+
+  .receipt-dialog{
+
+    width:100%;
+
+    margin:0;
+
+    border-radius:0;
+
+    box-shadow:none;
+
+  }
+
+
+  .receipt-head,
+  .receipt-actions{
+
+    display:none;
+
+  }
+
+}
+
+</style>
+
+
+<script
+  src="supabase-invoice-reversal-adapter.js?v=20260913-v2-1"
+></script>
+
+</head>
+
+
+<body>
+
+
+<div class="app">
+
+
+  <div class="header">
+
+    <div class="brand">
+
+      <h1>
+        ↩️ BIG BROTHER — Invoice Reversal
+      </h1>
+
+      <p>
+        Supabase V2 · Purchased / Zero-Cost source-aware stock restoration
+      </p>
+
+    </div>
+
+
+    <div
+      class="badge"
+      id="userBadge"
+    >
+      SUPABASE V2
+    </div>
+
+  </div>
+
+
+
+  <!-- ========================================================
+       INVOICE PICKER
+       ======================================================== -->
+
+  <div class="card">
+
+    <div class="card-title">
+
+      <span>
+        🔎 Load Invoice
+      </span>
+
+      <button
+        type="button"
+        class="secondary-btn"
+        id="refreshInvoicesBtn"
+      >
+        ↻ Refresh
+      </button>
+
+    </div>
+
+
+    <div class="card-body">
+
+
+      <div class="search-grid">
+
+
+        <div class="field">
+
+          <label>
+            Invoice No.
+          </label>
+
+
+          <div
+            class="invoice-picker"
+            id="invoicePicker"
+          >
+
+
+            <div class="invoice-input-wrap">
+
+              <input
+                id="invoiceNoInput"
+                type="text"
+                autocomplete="off"
+                placeholder="Example: INV-0051"
+              >
+
+              <button
+                type="button"
+                class="dropdown-toggle"
+                id="invoiceDropdownBtn"
+              >
+                ▼
+              </button>
+
+            </div>
+
+
+            <div
+              class="invoice-dropdown"
+              id="invoiceDropdown"
+            ></div>
+
+
+          </div>
+
+        </div>
+
+
+        <button
+          type="button"
+          class="primary-btn"
+          id="loadInvoiceBtn"
+        >
+          🔎 Load Invoice
+        </button>
+
+
+      </div>
+
+
+      <div
+        class="status"
+        id="statusBox"
+      ></div>
+
+
+    </div>
+
+  </div>
+
+
+
+  <!-- ========================================================
+       INVOICE DETAILS
+       ======================================================== -->
+
+  <div
+    class="card hidden"
+    id="invoiceCard"
+  >
+
+
+    <div class="card-title">
+
+      <span>
+        🧾 Invoice Information
+      </span>
+
+      <span
+        id="saleModeBadge"
+        class="mode-chip"
+      ></span>
+
+    </div>
+
+
+    <div class="card-body">
+
+
+      <div
+        class="invoice-meta"
+        id="invoiceMeta"
+      ></div>
+
+
+    </div>
+
+  </div>
+
+
+
+  <!-- ========================================================
+       PRODUCT LINES
+       ======================================================== -->
+
+  <div
+    class="card hidden"
+    id="productsCard"
+  >
+
+
+    <div class="card-title">
+
+      <span>
+        📦 Product / Reversal Qty
+      </span>
+
+      <span
+        id="lineCountLabel"
+        style="
+          font-size:9px;
+          color:#718297
+        "
+      ></span>
+
+    </div>
+
+
+    <div class="source-legend">
+
+      <span>
+        Direct Sale:
+      </span>
+
+      <span class="source-chip source-purchased">
+        PURCHASED
+      </span>
+
+      <span class="source-chip source-zero">
+        ZERO-COST
+      </span>
+
+      <span>
+        restores to the exact original warehouse source.
+      </span>
+
+      <span style="margin-left:6px">
+        Batch:
+      </span>
+
+      <span class="source-chip source-batch">
+        AUTO
+      </span>
+
+      <span>
+        existing Batch return allocation remains automatic.
+      </span>
+
+    </div>
+
+
+    <div class="table-wrap">
+
+
+      <table class="products-table">
+
+
+        <thead>
+
+          <tr>
+
+            <th style="width:220px">
+              Product
+            </th>
+
+            <th style="width:70px">
+              Sold
+            </th>
+
+            <th style="width:75px">
+              Returned
+            </th>
+
+            <th style="width:75px">
+              Available
+            </th>
+
+            <th style="width:220px">
+              Original / Remaining Source
+            </th>
+
+            <th style="width:105px">
+              Reverse Qty
+            </th>
+
+            <th style="width:235px">
+              Return Source
+            </th>
+
+            <th style="width:100px">
+              Amount
+            </th>
+
+          </tr>
+
+        </thead>
+
+
+        <tbody id="productRows"></tbody>
+
+
+      </table>
+
+
+    </div>
+
+
+  </div>
+
+
+
+  <!-- ========================================================
+       REVERSAL DETAILS
+       ======================================================== -->
+
+  <div
+    class="card hidden"
+    id="reversalCard"
+  >
+
+
+    <div class="card-title">
+
+      <span>
+        ✏️ Reversal Details
+      </span>
+
+    </div>
+
+
+    <div class="card-body">
+
+
+      <div class="controls-grid">
+
+
+        <div class="field">
+
+          <label>
+            Reversal Type
+          </label>
+
+          <select id="returnType">
+
+            <option value="Partial Reversal">
+              Partial Reversal
+            </option>
+
+            <option value="Full Reversal">
+              Full Reversal
+            </option>
+
+          </select>
+
+        </div>
+
+
+        <div class="field">
+
+          <label>
+            Reversal Date
+          </label>
+
+          <input
+            id="returnDate"
+            type="date"
+          >
+
+        </div>
+
+
+        <div class="field reason-field">
+
+          <label>
+            Reason
+          </label>
+
+          <input
+            id="reasonInput"
+            type="text"
+            placeholder="Reason for invoice reversal"
+          >
+
+        </div>
+
+
+      </div>
+
+
+      <div class="note-grid">
+
+
+        <div class="field">
+
+          <label>
+            Note
+          </label>
+
+          <textarea
+            id="noteInput"
+            placeholder="Optional note..."
+          ></textarea>
+
+        </div>
+
+
+        <div>
+
+          <div
+            class="status show normal"
+            id="cogsInfo"
+          >
+            Purchased reversal reduces Net Purchased Sold Qty and therefore Monthly COGS. Zero-Cost reversal restores quantity at $0 COGS.
+          </div>
+
+        </div>
+
+
+      </div>
+
+
+      <div class="total-panel">
+
+        <div class="total-label">
+          Reversal Amount
+        </div>
+
+        <div
+          class="total-value"
+          id="reversalTotal"
+        >
+          $0.00
+        </div>
+
+      </div>
+
+
+      <div class="actions">
+
+
+        <button
+          type="button"
+          class="secondary-btn"
+          id="clearBtn"
+        >
+          Clear
+        </button>
+
+
+        <button
+          type="button"
+          class="save-btn"
+          id="saveBtn"
+        >
+          ✓ Execute Reversal
+        </button>
+
+
+      </div>
+
+
+    </div>
+
+  </div>
+
+
+</div>
+
+
+
+<!-- ==========================================================
+     RECEIPT
+     ========================================================== -->
+
+<div
+  class="receipt-modal"
+  id="receiptModal"
+>
+
+
+  <div class="receipt-dialog">
+
+
+    <div class="receipt-head">
+
+      <span>
+        Invoice Reversal Receipt
+      </span>
+
+      <button
+        type="button"
+        class="receipt-close"
+        id="receiptCloseBtn"
+      >
+        ×
+      </button>
+
+    </div>
+
+
+    <div
+      class="receipt-body"
+      id="receiptBody"
+    ></div>
+
+
+    <div class="receipt-actions">
+
+      <button
+        type="button"
+        class="secondary-btn"
+        id="receiptPrintBtn"
+      >
+        🖨️ Print
+      </button>
+
+      <button
+        type="button"
+        class="primary-btn"
+        id="receiptDoneBtn"
+      >
+        Done
+      </button>
+
+    </div>
+
+
+  </div>
+
+
+</div>
+
+
+
+<script>
+
+(function () {
+
+  'use strict';
+
+
+  const A =
+    window.BBInvoiceReversalAdapter;
+
+
+  const EPS =
+    0.000001;
+
+
+  const state = {
+
+    recent:
+      [],
+
+    detail:
+      null,
+
+    lineMap:
+      new Map(),
+
+    saving:
+      false
+
+  };
+
+
+
+  /* ==========================================================
+     DOM
+     ========================================================== */
+
+  const invoiceNoInput =
+    document.getElementById(
+      'invoiceNoInput'
+    );
+
+
+  const invoiceDropdown =
+    document.getElementById(
+      'invoiceDropdown'
+    );
+
+
+  const invoiceDropdownBtn =
+    document.getElementById(
+      'invoiceDropdownBtn'
+    );
+
+
+  const loadInvoiceBtn =
+    document.getElementById(
+      'loadInvoiceBtn'
+    );
+
+
+  const refreshInvoicesBtn =
+    document.getElementById(
+      'refreshInvoicesBtn'
+    );
+
+
+  const statusBox =
+    document.getElementById(
+      'statusBox'
+    );
+
+
+  const invoiceCard =
+    document.getElementById(
+      'invoiceCard'
+    );
+
+
+  const productsCard =
+    document.getElementById(
+      'productsCard'
+    );
+
+
+  const reversalCard =
+    document.getElementById(
+      'reversalCard'
+    );
+
+
+  const invoiceMeta =
+    document.getElementById(
+      'invoiceMeta'
+    );
+
+
+  const productRows =
+    document.getElementById(
+      'productRows'
+    );
+
+
+  const saleModeBadge =
+    document.getElementById(
+      'saleModeBadge'
+    );
+
+
+  const lineCountLabel =
+    document.getElementById(
+      'lineCountLabel'
+    );
+
+
+  const returnType =
+    document.getElementById(
+      'returnType'
+    );
+
+
+  const returnDate =
+    document.getElementById(
+      'returnDate'
+    );
+
+
+  const reasonInput =
+    document.getElementById(
+      'reasonInput'
+    );
+
+
+  const noteInput =
+    document.getElementById(
+      'noteInput'
+    );
+
+
+  const reversalTotal =
+    document.getElementById(
+      'reversalTotal'
+    );
+
+
+  const clearBtn =
+    document.getElementById(
+      'clearBtn'
+    );
+
+
+  const saveBtn =
+    document.getElementById(
+      'saveBtn'
+    );
+
+
+  const userBadge =
+    document.getElementById(
+      'userBadge'
+    );
+
+
+  const receiptModal =
+    document.getElementById(
+      'receiptModal'
+    );
+
+
+  const receiptBody =
+    document.getElementById(
+      'receiptBody'
+    );
+
+
+
+  /* ==========================================================
+     HELPERS
+     ========================================================== */
+
+  function num(value) {
+
+    const n =
+      Number(value);
+
+
+    return Number.isFinite(n)
+      ?
+      n
+      :
+      0;
+
+  }
+
+
+
+  function clean(value) {
+
+    return String(
+      value == null
+        ?
+        ''
+        :
+        value
+    )
+    .trim();
+
+  }
+
+
+
+  function esc(value) {
+
+    return String(
+      value == null
+        ?
+        ''
+        :
+        value
+    )
+    .replace(
+      /&/g,
+      '&amp;'
+    )
+    .replace(
+      /</g,
+      '&lt;'
+    )
+    .replace(
+      />/g,
+      '&gt;'
+    )
+    .replace(
+      /"/g,
+      '&quot;'
+    )
+    .replace(
+      /'/g,
+      '&#039;'
+    );
+
+  }
+
+
+
+  function fmtQty(value) {
+
+    return num(value)
+      .toLocaleString(
+        'en-US',
+        {
+          maximumFractionDigits:
+            3
+        }
+      );
+
+  }
+
+
+
+  function currentCurrency() {
+
+    return clean(
+      state.detail
+        ?.invoice
+        ?.currency
+    )
+    ||
+    'USD';
+
+  }
+
+
+
+  function money(value) {
+
+    const currency =
+      currentCurrency();
+
+
+    const n =
+      num(value);
+
+
+    if (
+      currency
+        .toUpperCase()
+      ===
+      'USD'
+    ) {
+
+      return '$'
+        +
+        n.toLocaleString(
+          'en-US',
+          {
+            minimumFractionDigits:
+              2,
+
+            maximumFractionDigits:
+              2
+          }
+        );
+
+    }
+
+
+    return n.toLocaleString(
+      'en-US',
+      {
+        minimumFractionDigits:
+          0,
+
+        maximumFractionDigits:
+          2
+      }
+    )
+    +
+    ' '
+    +
+    currency;
+
+  }
+
+
+
+  function todayLocal() {
+
+    const d =
+      new Date();
+
+
+    const year =
+      d.getFullYear();
+
+
+    const month =
+      String(
+        d.getMonth() + 1
+      )
+      .padStart(
+        2,
+        '0'
+      );
+
+
+    const day =
+      String(
+        d.getDate()
+      )
+      .padStart(
+        2,
+        '0'
+      );
+
+
+    return (
+      year
+      +
+      '-'
+      +
+      month
+      +
+      '-'
+      +
+      day
+    );
+
+  }
+
+
+
+  function setStatus(
+    message,
+    type = 'normal'
+  ) {
+
+    statusBox.className =
+      'status show '
+      +
+      type;
+
+
+    statusBox.textContent =
+      message;
+
+  }
+
+
+
+  function hideStatus() {
+
+    statusBox.className =
+      'status';
+
+
+    statusBox.textContent =
+      '';
+
+  }
+
+
+
+  function rowByLineId(lineId) {
+
+    return productRows
+      .querySelector(
+        '[data-line-id="'
+        +
+        CSS.escape(
+          String(lineId)
+        )
+        +
+        '"]'
+      );
+
+  }
+
+
+
+  /* ==========================================================
+     RECENT INVOICES
+     ========================================================== */
+
+  async function loadRecentInvoices() {
+
+    refreshInvoicesBtn.disabled =
+      true;
+
+
+    try {
+
+
+      const data =
+        await A.recent(
+          50
+        );
+
+
+      state.recent =
+        Array.isArray(
+          data?.invoices
+        )
+          ?
+          data.invoices
+          :
+          [];
+
+
+      renderInvoiceDropdown(
+        invoiceNoInput.value
+      );
+
+
+    } catch (error) {
+
+
+      setStatus(
+
+        error?.message
+        ||
+        'Could not load recent invoices.',
+
+        'error'
+
+      );
+
+
+    } finally {
+
+
+      refreshInvoicesBtn.disabled =
+        false;
+
+
+    }
+
+  }
+
+
+
+  function renderInvoiceDropdown(filter = '') {
+
+    const query =
+      clean(
+        filter
+      )
+      .toLowerCase();
+
+
+    const rows =
+      state.recent
+        .filter(
+          invoice => {
+
+
+            const text =
+
+              [
+                invoice.invoiceNo,
+                invoice.invoiceDate,
+                invoice.customer,
+                invoice.locationCode,
+                invoice.saleMode
+              ]
+              .join(
+                ' '
+              )
+              .toLowerCase();
+
+
+            return (
+              !query
+              ||
+              text.includes(
+                query
+              )
+            );
+
+          }
+        )
+        .slice(
+          0,
+          50
+        );
+
+
+    if (!rows.length) {
+
+      invoiceDropdown.innerHTML =
+
+        '<div class="empty">'
+        +
+        'No matching Supabase invoices.'
+        +
+        '</div>';
+
+
+      return;
+
+    }
+
+
+    invoiceDropdown.innerHTML =
+
+      rows
+        .map(
+          invoice => {
+
+
+            const fully =
+              invoice.fullyReversed
+              ===
+              true;
+
+
+            return `
+
+<button
+  type="button"
+  class="invoice-option ${fully ? 'full' : ''}"
+  data-invoice-no="${esc(invoice.invoiceNo)}"
+>
+
+  <div class="invoice-option-top">
+
+    <span class="invoice-option-no">
+      ${esc(invoice.invoiceNo)}
+    </span>
+
+    <span class="invoice-option-date">
+      ${esc(invoice.invoiceDate)}
+    </span>
+
+  </div>
+
+
+  <div class="invoice-option-bottom">
+
+    <span>
+      ${esc(invoice.customer || '-')}
+      ·
+      ${esc(invoice.locationCode || '-')}
+    </span>
+
+    <span>
+      ${esc(invoice.saleMode || '')}
+      ${fully ? ' · FULLY REVERSED' : ''}
+    </span>
+
+  </div>
+
+</button>
+
+`;
+
+          }
+        )
+        .join('');
+
+  }
+
+
+
+  function openDropdown() {
+
+    renderInvoiceDropdown(
+      invoiceNoInput.value
+    );
+
+
+    invoiceDropdown
+      .classList
+      .add(
+        'open'
+      );
+
+  }
+
+
+
+  function closeDropdown() {
+
+    invoiceDropdown
+      .classList
+      .remove(
+        'open'
+      );
+
+  }
+
+
+
+  /* ==========================================================
+     LOAD DETAIL
+     ========================================================== */
+
+  async function loadInvoice(
+    invoiceNo
+  ) {
+
+    const no =
+      clean(
+        invoiceNo
+        ||
+        invoiceNoInput.value
+      );
+
+
+    if (!no) {
+
+      alert(
+        'Please enter an Invoice No.'
+      );
+
+      return;
+
+    }
+
+
+    invoiceNoInput.value =
+      no;
+
+
+    closeDropdown();
+
+
+    loadInvoiceBtn.disabled =
+      true;
+
+
+    setStatus(
+      'Loading invoice from Supabase V2...',
+      'normal'
+    );
+
+
+    try {
+
+
+      const data =
+        await A.detail(
+          no
+        );
+
+
+      if (
+        !data?.success
+      ) {
+
+        throw new Error(
+          data?.error
+          ||
+          'Invoice could not be loaded.'
+        );
+
+      }
+
+
+      state.detail =
+        data;
+
+
+      renderInvoice();
+
+
+      setStatus(
+
+        'Invoice loaded from Supabase V2. Enter the quantity you want to reverse.',
+
+        'success'
+
+      );
+
+
+    } catch (error) {
+
+
+      state.detail =
+        null;
+
+
+      hideInvoice();
+
+
+      setStatus(
+
+        error?.message
+        ||
+        'Invoice could not be loaded.',
+
+        'error'
+
+      );
+
+
+    } finally {
+
+
+      loadInvoiceBtn.disabled =
+        false;
+
+
+    }
+
+  }
+
+
+
+  /* ==========================================================
+     RENDER INVOICE
+     ========================================================== */
+
+  function renderInvoice() {
+
+    const invoice =
+      state.detail?.invoice
+      ||
+      {};
+
+
+    const items =
+      Array.isArray(
+        state.detail?.items
+      )
+        ?
+        state.detail.items
+        :
+        [];
+
+
+    state.lineMap.clear();
+
+
+    items.forEach(
+      item => {
+
+        state.lineMap.set(
+          String(
+            item.lineId
+          ),
+          item
+        );
+
+      }
+    );
+
+
+    invoiceCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+    productsCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+    reversalCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+
+    const mode =
+      clean(
+        invoice.saleMode
+      )
+      .toUpperCase();
+
+
+    saleModeBadge.textContent =
+      mode
+      ||
+      'DIRECT';
+
+
+    saleModeBadge.className =
+
+      'mode-chip '
+      +
+      (
+        mode === 'BATCH'
+          ?
+          'mode-batch'
+          :
+          'mode-direct'
+      );
+
+
+
+    invoiceMeta.innerHTML = `
+
+<div class="meta-box">
+
+  <span>
+    Invoice No.
+  </span>
+
+  <strong>
+    ${esc(invoice.invoiceNo)}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Invoice Date
+  </span>
+
+  <strong>
+    ${esc(invoice.invoiceDate)}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Customer
+  </span>
+
+  <strong>
+    ${esc(invoice.customer || '-')}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Location
+  </span>
+
+  <strong>
+    ${esc(invoice.locationCode || '-')}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Salesperson
+  </span>
+
+  <strong>
+    ${esc(invoice.salesperson || '-')}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Invoice Total
+  </span>
+
+  <strong>
+    ${money(invoice.grandTotal)}
+  </strong>
+
+</div>
+
+`;
+
+
+    lineCountLabel.textContent =
+
+      items.length
+      +
+      (
+        items.length === 1
+          ?
+          ' line'
+          :
+          ' lines'
+      );
+
+
+    productRows.innerHTML =
+
+      items
+        .map(
+          renderProductRow
+        )
+        .join('');
+
+
+    returnType.value =
+      'Partial Reversal';
+
+
+    reasonInput.value =
+      '';
+
+
+    noteInput.value =
+      '';
+
+
+    applyReturnType();
+
+
+    calculateTotal();
+
+  }
+
+
+
+  function renderProductRow(item) {
+
+    const available =
+      num(
+        item.availableQty
+      );
+
+
+    const sold =
+      num(
+        item.soldQty
+      );
+
+
+    const returned =
+      num(
+        item.returnedQty
+      );
+
+
+    const mode =
+      clean(
+        item.saleMode
+      )
+      .toUpperCase();
+
+
+    const sourceMode =
+      clean(
+        item.sourceMode
+      )
+      .toUpperCase();
+
+
+    const ambiguous =
+      num(
+        item.ambiguousPreviousReturnQty
+      );
+
+
+    const fullyReversed =
+      available
+      <=
+      EPS;
+
+
+    const rowClass =
+      fullyReversed
+        ?
+        'fully-reversed'
+        :
+        '';
+
+
+    const sourceHtml =
+      buildSourceSummary(
+        item
+      );
+
+
+    const returnSourceHtml =
+      buildReturnSourceControls(
+        item
+      );
+
+
+    return `
+
+<tr
+  class="${rowClass}"
+  data-line-id="${esc(item.lineId)}"
+>
+
+
+  <td>
+
+    <div class="product-name">
+      ${esc(item.productName)}
+    </div>
+
+    <div class="product-code">
+      ${esc(item.productCode)}
+      ${item.unit ? ' · ' + esc(item.unit) : ''}
+    </div>
+
+  </td>
+
+
+  <td class="center">
+    ${fmtQty(sold)}
+  </td>
+
+
+  <td class="center">
+    ${fmtQty(returned)}
+  </td>
+
+
+  <td class="center">
+    <strong>
+      ${fmtQty(available)}
+    </strong>
+  </td>
+
+
+  <td>
+    ${sourceHtml}
+  </td>
+
+
+  <td class="center">
+
+    <input
+      class="qty-input reverse-qty"
+      type="number"
+      min="0"
+      max="${available}"
+      step="any"
+      value="0"
+      ${fullyReversed || ambiguous > EPS ? 'disabled' : ''}
+    >
+
+  </td>
+
+
+  <td class="source-summary">
+
+    ${returnSourceHtml}
+
+    <div
+      class="line-message"
+    ></div>
+
+  </td>
+
+
+  <td class="right">
+
+    <strong class="line-amount">
+      ${money(0)}
+    </strong>
+
+  </td>
+
+
+</tr>
+
+`;
+
+  }
+
+
+
+  function buildSourceSummary(item) {
+
+    const mode =
+      clean(
+        item.saleMode
+      )
+      .toUpperCase();
+
+
+    if (
+      mode
+      ===
+      'BATCH'
+    ) {
+
+      return `
+
+<span class="source-chip source-batch">
+  BATCH
+</span>
+
+<div class="source-detail">
+  Existing Batch source allocation is restored automatically.
+</div>
+
+`;
+
+    }
+
+
+    const purchased =
+      num(
+        item.originalPurchasedQty
+      );
+
+
+    const zero =
+      num(
+        item.originalZeroCostQty
+      );
+
+
+    const remainingP =
+      num(
+        item.remainingPurchasedQty
+      );
+
+
+    const remainingZ =
+      num(
+        item.remainingZeroCostQty
+      );
+
+
+    let chips =
+      '';
+
+
+    if (
+      purchased
+      >
+      EPS
+    ) {
+
+      chips += `
+
+<span class="source-chip source-purchased">
+  PURCHASED ${fmtQty(purchased)}
+</span>
+
+`;
+
+    }
+
+
+    if (
+      zero
+      >
+      EPS
+    ) {
+
+      chips += `
+
+<span class="source-chip source-zero">
+  ZERO-COST ${fmtQty(zero)}
+</span>
+
+`;
+
+    }
+
+
+    return `
+
+${chips}
+
+<div class="source-detail">
+
+  Remaining Purchased:
+  <strong>
+    ${fmtQty(remainingP)}
+  </strong>
+
+  ·
+
+  Remaining Zero-Cost:
+  <strong>
+    ${fmtQty(remainingZ)}
+  </strong>
+
+</div>
+
+`;
+
+  }
+
+
+
+  function buildReturnSourceControls(item) {
+
+    const mode =
+      clean(
+        item.saleMode
+      )
+      .toUpperCase();
+
+
+    const ambiguous =
+      num(
+        item.ambiguousPreviousReturnQty
+      );
+
+
+    if (
+      ambiguous
+      >
+      EPS
+    ) {
+
+      return `
+
+<div class="line-error">
+
+  Older Mixed reversal source is ambiguous.
+  Manual review required.
+
+</div>
+
+`;
+
+    }
+
+
+    if (
+      mode
+      ===
+      'BATCH'
+    ) {
+
+      return `
+
+<span class="source-chip source-batch">
+  AUTO BATCH RETURN
+</span>
+
+<div class="source-detail">
+  Batch Purchased / Zero-Cost allocation is handled by the existing Batch return engine.
+</div>
+
+`;
+
+    }
+
+
+    const remainingP =
+      num(
+        item.remainingPurchasedQty
+      );
+
+
+    const remainingZ =
+      num(
+        item.remainingZeroCostQty
+      );
+
+
+    if (
+      remainingP
+      >
+      EPS
+
+      &&
+
+      remainingZ
+      >
+      EPS
+    ) {
+
+      return `
+
+<span class="source-chip source-purchased">
+  PURCHASED
+</span>
+
+<span class="source-chip source-zero">
+  ZERO-COST
+</span>
+
+
+<div class="mixed-controls">
+
+
+  <div class="mixed-control">
+
+    <label>
+      Purchased Return
+    </label>
+
+    <input
+      type="number"
+      class="source-purchased-qty"
+      min="0"
+      max="${remainingP}"
+      step="any"
+      value="0"
+    >
+
+  </div>
+
+
+  <div class="mixed-control">
+
+    <label>
+      Zero-Cost Return
+    </label>
+
+    <input
+      type="number"
+      class="source-zero-qty"
+      min="0"
+      max="${remainingZ}"
+      step="any"
+      value="0"
+    >
+
+  </div>
+
+
+</div>
+
+
+<div class="source-detail">
+  Mixed Direct Sale: source quantities control the Reverse Qty.
+</div>
+
+`;
+
+    }
+
+
+    if (
+      remainingZ
+      >
+      EPS
+    ) {
+
+      return `
+
+<span class="source-chip source-zero">
+  ZERO-COST RETURN
+</span>
+
+<div class="source-detail">
+  Reverse Qty automatically restores to WAREHOUSE_ZERO_COST.
+</div>
+
+`;
+
+    }
+
+
+    return `
+
+<span class="source-chip source-purchased">
+  PURCHASED RETURN
+</span>
+
+<div class="source-detail">
+  Reverse Qty automatically restores to WAREHOUSE_GOOD.
+</div>
+
+`;
+
+  }
+
+
+
+  /* ==========================================================
+     ROW SYNCHRONIZATION
+     ========================================================== */
+
+  function isMixedDirect(item) {
+
+    return (
+
+      clean(
+        item.saleMode
+      )
+      .toUpperCase()
+      ===
+      'DIRECT'
+
+      &&
+
+      num(
+        item.remainingPurchasedQty
+      )
+      >
+      EPS
+
+      &&
+
+      num(
+        item.remainingZeroCostQty
+      )
+      >
+      EPS
+
+    );
+
+  }
+
+
+
+  function syncRow(
+    row,
+    sourceChanged = false
+  ) {
+
+    const lineId =
+      row.dataset.lineId;
+
+
+    const item =
+      state.lineMap.get(
+        lineId
+      );
+
+
+    if (!item) {
+
+      return;
+
+    }
+
+
+    const reverseInput =
+      row.querySelector(
+        '.reverse-qty'
+      );
+
+
+    const purchasedInput =
+      row.querySelector(
+        '.source-purchased-qty'
+      );
+
+
+    const zeroInput =
+      row.querySelector(
+        '.source-zero-qty'
+      );
+
+
+    const full =
+      returnType.value
+      ===
+      'Full Reversal';
+
+
+    const mixed =
+      isMixedDirect(
+        item
+      );
+
+
+    if (mixed) {
+
+
+      if (
+        full
+      ) {
+
+
+        purchasedInput.value =
+          String(
+            num(
+              item.remainingPurchasedQty
+            )
+          );
+
+
+        zeroInput.value =
+          String(
+            num(
+              item.remainingZeroCostQty
+            )
+          );
+
+
+      }
+
+
+      reverseInput.readOnly =
+        true;
+
+
+      reverseInput.value =
+        String(
+
+          Math.max(
+            0,
+            num(
+              purchasedInput.value
+            )
+          )
+
+          +
+
+          Math.max(
+            0,
+            num(
+              zeroInput.value
+            )
+          )
+
+        );
+
+
+    } else {
+
+
+      reverseInput.readOnly =
+        false;
+
+
+    }
+
+
+    updateRowValidation(
+      row
+    );
+
+
+    updateLineAmount(
+      row
+    );
+
+
+    calculateTotal();
+
+  }
+
+
+
+  function updateLineAmount(row) {
+
+    const item =
+      state.lineMap.get(
+        row.dataset.lineId
+      );
+
+
+    if (!item) {
+
+      return;
+
+    }
+
+
+    const qty =
+      num(
+        row
+          .querySelector(
+            '.reverse-qty'
+          )
+          ?.value
+      );
+
+
+    const amount =
+      qty
+      *
+      num(
+        item.unitPrice
+      );
+
+
+    const cell =
+      row.querySelector(
+        '.line-amount'
+      );
+
+
+    if (cell) {
+
+      cell.textContent =
+        money(
+          amount
+        );
+
+    }
+
+  }
+
+
+
+  function updateRowValidation(row) {
+
+    const item =
+      state.lineMap.get(
+        row.dataset.lineId
+      );
+
+
+    const message =
+      row.querySelector(
+        '.line-message'
+      );
+
+
+    if (
+      !item
+      ||
+      !message
+    ) {
+
+      return true;
+
+    }
+
+
+    message.className =
+      'line-message';
+
+
+    message.textContent =
+      '';
+
+
+    const reverseQty =
+      num(
+        row
+          .querySelector(
+            '.reverse-qty'
+          )
+          ?.value
+      );
+
+
+    const available =
+      num(
+        item.availableQty
+      );
+
+
+    if (
+      reverseQty
+      <
+      -EPS
+    ) {
+
+      message.textContent =
+        'Reverse Qty cannot be negative.';
+
+
+      message.classList.add(
+        'line-error'
+      );
+
+
+      return false;
+
+    }
+
+
+    if (
+      reverseQty
+      >
+      available
+      +
+      EPS
+    ) {
+
+      message.textContent =
+
+        'Reverse Qty exceeds available '
+        +
+        fmtQty(
+          available
+        )
+        +
+        '.';
+
+
+      message.classList.add(
+        'line-error'
+      );
+
+
+      return false;
+
+    }
+
+
+
+    if (
+      isMixedDirect(
+        item
+      )
+    ) {
+
+
+      const p =
+        num(
+          row
+            .querySelector(
+              '.source-purchased-qty'
+            )
+            ?.value
+        );
+
+
+      const z =
+        num(
+          row
+            .querySelector(
+              '.source-zero-qty'
+            )
+            ?.value
+        );
+
+
+      if (
+        p
+        >
+        num(
+          item.remainingPurchasedQty
+        )
+        +
+        EPS
+      ) {
+
+        message.textContent =
+          'Purchased Return exceeds remaining Purchased Sold Qty.';
+
+
+        message.classList.add(
+          'line-error'
+        );
+
+
+        return false;
+
+      }
+
+
+      if (
+        z
+        >
+        num(
+          item.remainingZeroCostQty
+        )
+        +
+        EPS
+      ) {
+
+        message.textContent =
+          'Zero-Cost Return exceeds remaining Zero-Cost Sold Qty.';
+
+
+        message.classList.add(
+          'line-error'
+        );
+
+
+        return false;
+
+      }
+
+
+      if (
+        reverseQty
+        >
+        EPS
+
+        &&
+
+        p + z
+        <=
+        EPS
+      ) {
+
+        message.textContent =
+          'Select Purchased / Zero-Cost Return Qty.';
+
+
+        message.classList.add(
+          'line-error'
+        );
+
+
+        return false;
+
+      }
+
+
+    }
+
+
+    if (
+      reverseQty
+      >
+      EPS
+    ) {
+
+      message.textContent =
+        'Ready';
+
+
+      message.classList.add(
+        'line-ok'
+      );
+
+    }
+
+
+    return true;
+
+  }
+
+
+
+  /* ==========================================================
+     REVERSAL TYPE
+     ========================================================== */
+
+  function applyReturnType() {
+
+    const full =
+      returnType.value
+      ===
+      'Full Reversal';
+
+
+    [
+      ...productRows.querySelectorAll(
+        'tr[data-line-id]'
+      )
+    ]
+    .forEach(
+      row => {
+
+
+        const item =
+          state.lineMap.get(
+            row.dataset.lineId
+          );
+
+
+        if (!item) {
+
+          return;
+
+        }
+
+
+        const reverseInput =
+          row.querySelector(
+            '.reverse-qty'
+          );
+
+
+        const pInput =
+          row.querySelector(
+            '.source-purchased-qty'
+          );
+
+
+        const zInput =
+          row.querySelector(
+            '.source-zero-qty'
+          );
+
+
+        const available =
+          num(
+            item.availableQty
+          );
+
+
+        const ambiguous =
+          num(
+            item.ambiguousPreviousReturnQty
+          )
+          >
+          EPS;
+
+
+        if (
+          available
+          <=
+          EPS
+
+          ||
+
+          ambiguous
+        ) {
+
+          reverseInput.value =
+            '0';
+
+
+          reverseInput.disabled =
+            true;
+
+
+          if (pInput) {
+
+            pInput.disabled =
+              true;
+
+          }
+
+
+          if (zInput) {
+
+            zInput.disabled =
+              true;
+
+          }
+
+
+          updateLineAmount(
+            row
+          );
+
+
+          return;
+
+        }
+
+
+        if (full) {
+
+
+          reverseInput.value =
+            String(
+              available
+            );
+
+
+          reverseInput.disabled =
+            true;
+
+
+          if (pInput) {
+
+            pInput.value =
+              String(
+                num(
+                  item.remainingPurchasedQty
+                )
+              );
+
+
+            pInput.disabled =
+              true;
+
+          }
+
+
+          if (zInput) {
+
+            zInput.value =
+              String(
+                num(
+                  item.remainingZeroCostQty
+                )
+              );
+
+
+            zInput.disabled =
+              true;
+
+          }
+
+
+
+        } else {
+
+
+          reverseInput.value =
+            '0';
+
+
+          reverseInput.disabled =
+            false;
+
+
+          if (
+            isMixedDirect(
+              item
+            )
+          ) {
+
+            reverseInput.readOnly =
+              true;
+
+          } else {
+
+            reverseInput.readOnly =
+              false;
+
+          }
+
+
+          if (pInput) {
+
+            pInput.value =
+              '0';
+
+
+            pInput.disabled =
+              false;
+
+          }
+
+
+          if (zInput) {
+
+            zInput.value =
+              '0';
+
+
+            zInput.disabled =
+              false;
+
+          }
+
+
+        }
+
+
+        syncRow(
+          row
+        );
+
+
+      }
+    );
+
+
+    calculateTotal();
+
+  }
+
+
+
+  /* ==========================================================
+     TOTAL
+     ========================================================== */
+
+  function calculateTotal() {
+
+    let total =
+      0;
+
+
+    [
+      ...productRows.querySelectorAll(
+        'tr[data-line-id]'
+      )
+    ]
+    .forEach(
+      row => {
+
+
+        const item =
+          state.lineMap.get(
+            row.dataset.lineId
+          );
+
+
+        if (!item) {
+
+          return;
+
+        }
+
+
+        total +=
+
+          num(
+            row
+              .querySelector(
+                '.reverse-qty'
+              )
+              ?.value
+          )
+
+          *
+
+          num(
+            item.unitPrice
+          );
+
+
+      }
+    );
+
+
+    reversalTotal.textContent =
+      money(
+        total
+      );
+
+
+    return total;
+
+  }
+
+
+
+  /* ==========================================================
+     PAYLOAD
+     ========================================================== */
+
+  function collectLines() {
+
+    const result =
+      [];
+
+
+    const errors =
+      [];
+
+
+    [
+      ...productRows.querySelectorAll(
+        'tr[data-line-id]'
+      )
+    ]
+    .forEach(
+      row => {
+
+
+        const item =
+          state.lineMap.get(
+            row.dataset.lineId
+          );
+
+
+        if (!item) {
+
+          return;
+
+        }
+
+
+        const reverseQty =
+          num(
+            row
+              .querySelector(
+                '.reverse-qty'
+              )
+              ?.value
+          );
+
+
+        if (
+          reverseQty
+          <=
+          EPS
+        ) {
+
+          return;
+
+        }
+
+
+        if (
+          !updateRowValidation(
+            row
+          )
+        ) {
+
+          errors.push(
+            item.productName
+          );
+
+          return;
+
+        }
+
+
+        const line = {
+
+          lineId:
+            item.lineId,
+
+          qty:
+            reverseQty
+
+        };
+
+
+        const mode =
+          clean(
+            item.saleMode
+          )
+          .toUpperCase();
+
+
+        if (
+          mode
+          ===
+          'DIRECT'
+        ) {
+
+
+          const remainingP =
+            num(
+              item.remainingPurchasedQty
+            );
+
+
+          const remainingZ =
+            num(
+              item.remainingZeroCostQty
+            );
+
+
+          if (
+            remainingP
+            >
+            EPS
+
+            &&
+
+            remainingZ
+            >
+            EPS
+          ) {
+
+
+            const p =
+              num(
+                row
+                  .querySelector(
+                    '.source-purchased-qty'
+                  )
+                  ?.value
+              );
+
+
+            const z =
+              num(
+                row
+                  .querySelector(
+                    '.source-zero-qty'
+                  )
+                  ?.value
+              );
+
+
+            line.stockAllocations =
+              [];
+
+
+            if (
+              p
+              >
+              EPS
+            ) {
+
+              line.stockAllocations.push({
+
+                source:
+                  'PURCHASED',
+
+                qty:
+                  p
+
+              });
+
+            }
+
+
+            if (
+              z
+              >
+              EPS
+            ) {
+
+              line.stockAllocations.push({
+
+                source:
+                  'ZERO_COST',
+
+                qty:
+                  z
+
+              });
+
+            }
+
+
+
+          } else if (
+            remainingZ
+            >
+            EPS
+          ) {
+
+
+            line.stockAllocations = [
+
+              {
+
+                source:
+                  'ZERO_COST',
+
+                qty:
+                  reverseQty
+
+              }
+
+            ];
+
+
+
+          } else {
+
+
+            line.stockAllocations = [
+
+              {
+
+                source:
+                  'PURCHASED',
+
+                qty:
+                  reverseQty
+
+              }
+
+            ];
+
+
+          }
+
+
+        }
+
+
+        result.push(
+          line
+        );
+
+
+      }
+    );
+
+
+    if (
+      errors.length
+    ) {
+
+      throw new Error(
+
+        'Please fix the Reversal Source for: '
+        +
+        errors.join(
+          ', '
+        )
+
+      );
+
+    }
+
+
+    return result;
+
+  }
+
+
+
+  /* ==========================================================
+     SAVE
+     ========================================================== */
+
+  async function executeReversal() {
+
+    if (
+      state.saving
+    ) {
+
+      return;
+
+    }
+
+
+    if (
+      !state.detail
+    ) {
+
+      alert(
+        'Please load an Invoice first.'
+      );
+
+      return;
+
+    }
+
+
+    const reason =
+      clean(
+        reasonInput.value
+      );
+
+
+    if (!reason) {
+
+      alert(
+        'Please enter a Reversal Reason.'
+      );
+
+
+      reasonInput.focus();
+
+
+      return;
+
+    }
+
+
+    if (
+      !returnDate.value
+    ) {
+
+      alert(
+        'Please select a Reversal Date.'
+      );
+
+      return;
+
+    }
+
+
+    let lines;
+
+
+    try {
+
+      lines =
+        collectLines();
+
+    } catch (error) {
+
+      alert(
+        error?.message
+        ||
+        String(error)
+      );
+
+      return;
+
+    }
+
+
+    if (
+      !lines.length
+    ) {
+
+      alert(
+        'Please enter a Reversal Qty for at least one product.'
+      );
+
+      return;
+
+    }
+
+
+    const total =
+      calculateTotal();
+
+
+    const invoice =
+      state.detail.invoice;
+
+
+    const confirmed =
+      confirm(
+
+        'Execute this Invoice Reversal?\n\n'
+
+        +
+
+        'Invoice: '
+        +
+        invoice.invoiceNo
+        +
+        '\n'
+
+        +
+
+        'Type: '
+        +
+        returnType.value
+        +
+        '\n'
+
+        +
+
+        'Product Lines: '
+        +
+        lines.length
+        +
+        '\n'
+
+        +
+
+        'Reversal Amount: '
+        +
+        money(
+          total
+        )
+        +
+        '\n\n'
+
+        +
+
+        'Stock will be restored to the original source.'
+
+      );
+
+
+    if (!confirmed) {
+
+      return;
+
+    }
+
+
+    state.saving =
+      true;
+
+
+    saveBtn.disabled =
+      true;
+
+
+    saveBtn.textContent =
+      '⏳ Reversing...';
+
+
+    try {
+
+
+      const payload = {
+
+        invoiceNo:
+          invoice.invoiceNo,
+
+        returnDate:
+          returnDate.value,
+
+        returnType:
+          returnType.value,
+
+        reason:
+          reason,
+
+        note:
+          clean(
+            noteInput.value
+          ),
+
+        lines:
+          lines
+
+      };
+
+
+      const result =
+        await A.save(
+          payload
+        );
+
+
+      if (
+        !result?.success
+      ) {
+
+        throw new Error(
+          result?.error
+          ||
+          'Invoice Reversal could not be saved.'
+        );
+
+      }
+
+
+      showReceipt(
+        result
+      );
+
+
+      setStatus(
+
+        'Invoice Reversal saved successfully in Supabase V2. Stock source restoration completed.',
+
+        'success'
+
+      );
+
+
+      await loadRecentInvoices();
+
+
+      await loadInvoice(
+        invoice.invoiceNo
+      );
+
+
+    } catch (error) {
+
+
+      console.error(
+        'Invoice Reversal V2 save failed:',
+        error
+      );
+
+
+      setStatus(
+
+        error?.message
+        ||
+        'Invoice Reversal could not be saved.',
+
+        'error'
+
+      );
+
+
+      alert(
+
+        'Could not complete the Invoice Reversal.\n\n'
+
+        +
+
+        (
+          error?.message
+          ||
+          String(error)
+        )
+
+      );
+
+
+    } finally {
+
+
+      state.saving =
+        false;
+
+
+      saveBtn.disabled =
+        false;
+
+
+      saveBtn.textContent =
+        '✓ Execute Reversal';
+
+
+    }
+
+  }
+
+
+
+  /* ==========================================================
+     RECEIPT
+     ========================================================== */
+
+  function sourceLabel(allocations) {
+
+    if (
+      !Array.isArray(
+        allocations
+      )
+    ) {
+
+      return 'Batch / Auto';
+
+    }
+
+
+    if (!allocations.length) {
+
+      return '-';
+
+    }
+
+
+    return allocations
+      .map(
+        item =>
+
+          clean(
+            item.source
+            ||
+            item.productCode
+          )
+
+          +
+
+          ' '
+
+          +
+
+          fmtQty(
+            item.qty
+          )
+
+      )
+      .join(
+        ' + '
+      );
+
+  }
+
+
+
+  function showReceipt(result) {
+
+    const returns =
+      Array.isArray(
+        result.returns
+      )
+        ?
+        result.returns
+        :
+        [];
+
+
+    receiptBody.innerHTML = `
+
+<h2 class="receipt-title">
+  BIG BROTHER
+</h2>
+
+<div class="receipt-sub">
+  Invoice Reversal Receipt · Supabase V2
+</div>
+
+
+<div class="receipt-meta">
+
+
+  <div class="receipt-box">
+
+    <span>
+      Invoice No.
+    </span>
+
+    <strong>
+      ${esc(result.invoiceNo)}
+    </strong>
+
+  </div>
+
+
+  <div class="receipt-box">
+
+    <span>
+      Reversal Date
+    </span>
+
+    <strong>
+      ${esc(returnDate.value)}
+    </strong>
+
+  </div>
+
+
+  <div class="receipt-box">
+
+    <span>
+      Reversal Type
+    </span>
+
+    <strong>
+      ${esc(returnType.value)}
+    </strong>
+
+  </div>
+
+
+</div>
+
+
+<table class="receipt-table">
+
+  <thead>
+
+    <tr>
+
+      <th>
+        Return ID
+      </th>
+
+      <th>
+        Product
+      </th>
+
+      <th>
+        Qty
+      </th>
+
+      <th>
+        Stock Source
+      </th>
+
+      <th>
+        Amount
+      </th>
+
+    </tr>
+
+  </thead>
+
+
+  <tbody>
+
+    ${
+
+      returns
+        .map(
+          row => `
+
+<tr>
+
+  <td>
+    ${esc(row.returnId)}
+  </td>
+
+  <td>
+    ${esc(row.productName)}
+  </td>
+
+  <td style="text-align:center">
+    ${fmtQty(row.qty)}
+  </td>
+
+  <td>
+    ${esc(sourceLabel(row.stockAllocations))}
+  </td>
+
+  <td style="text-align:right">
+    ${money(row.amount)}
+  </td>
+
+</tr>
+
+`
+        )
+        .join('')
+
+    }
+
+  </tbody>
+
+</table>
+
+
+<div class="receipt-total">
+
+  <span>
+    Total Reversal
+  </span>
+
+  <span>
+    ${money(result.totalAmount)}
+  </span>
+
+</div>
+
+
+<div
+  style="
+    margin-top:15px;
+    padding:9px 10px;
+    border-radius:8px;
+    background:#eef8f3;
+    color:#176b4b;
+    font-size:10px;
+    font-weight:700;
+  "
+>
+  Stock restoration and accounting reversal were processed atomically by Supabase.
+</div>
+
+`;
+
+
+    receiptModal
+      .classList
+      .add(
+        'open'
+      );
+
+  }
+
+
+
+  function closeReceipt() {
+
+    receiptModal
+      .classList
+      .remove(
+        'open'
+      );
+
+  }
+
+
+
+  /* ==========================================================
+     CLEAR
+     ========================================================== */
+
+  function hideInvoice() {
+
+    invoiceCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    productsCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    reversalCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    productRows.innerHTML =
+      '';
+
+
+    state.lineMap.clear();
+
+  }
+
+
+
+  function clearAll() {
+
+    state.detail =
+      null;
+
+
+    invoiceNoInput.value =
+      '';
+
+
+    reasonInput.value =
+      '';
+
+
+    noteInput.value =
+      '';
+
+
+    returnType.value =
+      'Partial Reversal';
+
+
+    returnDate.value =
+      todayLocal();
+
+
+    reversalTotal.textContent =
+      '$0.00';
+
+
+    hideInvoice();
+
+    hideStatus();
+
+  }
+
+
+
+  /* ==========================================================
+     EVENTS
+     ========================================================== */
+
+  invoiceNoInput.addEventListener(
+
+    'focus',
+
+    openDropdown
+
+  );
+
+
+  invoiceNoInput.addEventListener(
+
+    'input',
+
+    function () {
+
+      renderInvoiceDropdown(
+        invoiceNoInput.value
+      );
+
+
+      invoiceDropdown
+        .classList
+        .add(
+          'open'
+        );
+
+    }
+
+  );
+
+
+  invoiceNoInput.addEventListener(
+
+    'keydown',
+
+    function (event) {
+
+      if (
+        event.key
+        ===
+        'Enter'
+      ) {
+
+        event.preventDefault();
+
+        loadInvoice();
+
+      }
+
+    }
+
+  );
+
+
+  invoiceDropdownBtn.addEventListener(
+
+    'click',
+
+    function () {
+
+      invoiceDropdown
+        .classList
+        .toggle(
+          'open'
+        );
+
+
+      if (
+        invoiceDropdown
+          .classList
+          .contains(
+            'open'
+          )
+      ) {
+
+        renderInvoiceDropdown(
+          invoiceNoInput.value
+        );
+
+      }
+
+    }
+
+  );
+
+
+  invoiceDropdown.addEventListener(
+
+    'click',
+
+    function (event) {
+
+      const button =
+        event.target.closest(
+          '[data-invoice-no]'
+        );
+
+
+      if (!button) {
+
+        return;
+
+      }
+
+
+      const invoiceNo =
+        button.dataset.invoiceNo;
+
+
+      invoiceNoInput.value =
+        invoiceNo;
+
+
+      loadInvoice(
+        invoiceNo
+      );
+
+    }
+
+  );
+
+
+  document.addEventListener(
+
+    'click',
+
+    function (event) {
+
+      if (
+        !document
+          .getElementById(
+            'invoicePicker'
+          )
+          .contains(
+            event.target
+          )
+      ) {
+
+        closeDropdown();
+
+      }
+
+    }
+
+  );
+
+
+  loadInvoiceBtn.addEventListener(
+    'click',
+    () => loadInvoice()
+  );
+
+
+  refreshInvoicesBtn.addEventListener(
+
+    'click',
+
+    async function () {
+
+      await loadRecentInvoices();
+
+      setStatus(
+        'Recent Supabase invoices refreshed.',
+        'success'
+      );
+
+    }
+
+  );
+
+
+  returnType.addEventListener(
+    'change',
+    applyReturnType
+  );
+
+
+  productRows.addEventListener(
+
+    'input',
+
+    function (event) {
+
+      const row =
+        event.target.closest(
+          'tr[data-line-id]'
+        );
+
+
+      if (!row) {
+
+        return;
+
+      }
+
+
+      if (
+        event.target.classList.contains(
+          'source-purchased-qty'
+        )
+
+        ||
+
+        event.target.classList.contains(
+          'source-zero-qty'
+        )
+      ) {
+
+        syncRow(
+          row,
+          true
+        );
+
+        return;
+
+      }
+
+
+      if (
+        event.target.classList.contains(
+          'reverse-qty'
+        )
+      ) {
+
+        syncRow(
+          row,
+          false
+        );
+
+      }
+
+    }
+
+  );
+
+
+  saveBtn.addEventListener(
+    'click',
+    executeReversal
+  );
+
+
+  clearBtn.addEventListener(
+    'click',
+    clearAll
+  );
+
+
+  document
+    .getElementById(
+      'receiptCloseBtn'
+    )
+    .addEventListener(
+      'click',
+      closeReceipt
+    );
+
+
+  document
+    .getElementById(
+      'receiptDoneBtn'
+    )
+    .addEventListener(
+      'click',
+      closeReceipt
+    );
+
+
+  document
+    .getElementById(
+      'receiptPrintBtn'
+    )
+    .addEventListener(
+
+      'click',
+
+      function () {
+
+        window.print();
+
+      }
+
+    );
+
+
+
+  /* ==========================================================
+     START
+     ========================================================== */
+
+  async function start() {
+
+    returnDate.value =
+      todayLocal();
+
+
+    try {
+
+
+      await A.ensureSession();
+
+
+      const profile =
+        await A.accessProfile();
+
+
+      const displayName =
+
+        profile?.staff?.staffName
+
+        ||
+
+        profile?.user?.email
+
+        ||
+
+        'Signed In';
+
+
+      userBadge.textContent =
+        'SUPABASE V2 · '
+        +
+        displayName;
+
+
+      await loadRecentInvoices();
+
+
+      const params =
+        new URLSearchParams(
+          location.search
+        );
+
+
+      const invoiceNo =
+        clean(
+          params.get(
+            'invoice'
+          )
+        );
+
+
+      if (invoiceNo) {
+
+        invoiceNoInput.value =
+          invoiceNo;
+
+
+        await loadInvoice(
+          invoiceNo
+        );
+
+      }
+
+
+    } catch (error) {
+
+
+      setStatus(
+
+        error?.message
+        ||
+        'Please sign in to BIG BROTHER first.',
+
+        'error'
+
+      );
+
+
+    }
+
+  }
+
+
+  start();
+
+
 })();
+
 </script>
+
+
 </body>
+
 </html>
