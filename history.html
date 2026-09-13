@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BIG BROTHER — Reversal History</title>
+<style>
+*{box-sizing:border-box}
+:root{--navy:#17457a;--navy2:#123861;--blue:#2f6fed;--bg:#eef3f8;--card:#fff;--text:#172b4d;--muted:#6b7f95;--border:#d4dfec;--green:#15875c;--greenbg:#eaf8f2;--red:#b42318;--redbg:#fff0ef;--orange:#a76400;--orangebg:#fff5df;--purple:#7450a8;--purplebg:#f3edfb}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:"Segoe UI",Tahoma,Arial,sans-serif}
+body{padding:14px}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.app{width:min(1500px,100%);margin:0 auto}
+.header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:13px}
+.brand h1{margin:0;color:var(--navy);font-size:27px;letter-spacing:.5px}.brand p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.header-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.btn{border:0;border-radius:9px;padding:9px 12px;font-size:10px;font-weight:900}.btn-primary{background:var(--navy);color:#fff}.btn-secondary{border:1px solid #c9d7e6;background:#fff;color:var(--navy)}.btn-light{border:1px solid #d9e3ed;background:#f8fbff;color:#42617d}.btn-danger{background:#fff0ef;color:#a33229;border:1px solid #efcfcc}.btn:disabled{opacity:.55;cursor:wait}
+.card{background:var(--card);border:1px solid var(--border);border-radius:13px;box-shadow:0 4px 16px rgba(27,54,88,.05);margin-bottom:11px;overflow:hidden}.card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid #e4ebf3;color:var(--navy);font-size:14px;font-weight:900}.card-body{padding:13px 14px}
+.filters{display:grid;grid-template-columns:160px 160px minmax(220px,1fr) 150px auto auto;gap:8px;align-items:end}.field label{display:block;margin-bottom:5px;color:#65798e;font-size:8px;font-weight:900;text-transform:uppercase}.field input,.field select{width:100%;height:38px;border:1px solid #cbd8e5;border-radius:8px;padding:6px 9px;background:#fff;color:#17324f;font-size:10px;font-weight:700}
+.status{display:none;margin-top:9px;border-radius:8px;padding:8px 10px;font-size:10px;font-weight:800}.status.show{display:block}.status.error{background:var(--redbg);color:var(--red)}.status.normal{background:#edf5fd;color:#42617d}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:8px;margin-bottom:11px}.kpi{background:#fff;border:1px solid var(--border);border-radius:11px;padding:11px 12px;position:relative;overflow:hidden}.kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--a,#2f6fed)}.kpi span{display:block;color:#6e8094;font-size:8px;font-weight:900;text-transform:uppercase}.kpi strong{display:block;margin-top:5px;color:var(--a,#17457a);font-size:20px}.kpi small{display:block;margin-top:4px;color:#8a9aab;font-size:8px}
+.table-wrap{overflow:auto}.history-table{width:100%;border-collapse:collapse;min-width:1240px}.history-table th,.history-table td{padding:9px 8px;border-bottom:1px solid #e7edf4;text-align:left;font-size:9px;vertical-align:middle}.history-table th{background:#f3f7fb;color:#5c7188;text-transform:uppercase;font-size:8px;white-space:nowrap}.history-table tr:hover td{background:#fbfdff}.history-table .amount{text-align:right;font-weight:900;color:#173f77}.id{font-weight:900;color:#17457a}.sub{display:block;margin-top:3px;color:#8392a3;font-size:8px}.chip{display:inline-flex;align-items:center;border-radius:999px;padding:4px 7px;font-size:8px;font-weight:900;white-space:nowrap}.chip-partial{background:var(--orangebg);color:var(--orange)}.chip-full{background:var(--redbg);color:var(--red)}.chip-direct{background:#eaf3ff;color:#1d5da4}.chip-batch{background:var(--purplebg);color:var(--purple)}.row-actions{display:flex;gap:5px;white-space:nowrap}.row-actions button{border:1px solid #cbd9e8;background:#fff;color:#17457a;border-radius:7px;padding:6px 8px;font-size:8px;font-weight:900}.row-actions button:hover{background:#edf5fd}.empty{text-align:center!important;padding:28px!important;color:#8291a2!important}
+.modal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(13,32,54,.64);padding:14px;overflow:auto}.modal.open{display:flex;align-items:flex-start;justify-content:center}.dialog{width:min(980px,100%);margin:18px auto;background:#fff;border-radius:14px;box-shadow:0 20px 65px rgba(0,0,0,.3);overflow:hidden}.modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;background:var(--navy);color:#fff}.modal-head strong{font-size:14px}.modal-close{border:0;background:transparent;color:#fff;font-size:23px;line-height:1}.modal-body{padding:16px}.modal-actions{display:flex;justify-content:flex-end;gap:7px;padding:11px 15px;background:#f4f7fa}.preview-title{text-align:center;margin:0;color:var(--navy);font-size:21px}.preview-sub{text-align:center;margin:4px 0 0;color:#73869a;font-size:9px}.meta-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:14px}.meta{border:1px solid #dce5ef;border-radius:8px;padding:8px 9px;min-height:54px}.meta span{display:block;color:#78899b;font-size:7px;font-weight:900;text-transform:uppercase}.meta strong{display:block;margin-top:4px;color:#173b70;font-size:10px;word-break:break-word}.summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:12px}.summary{border-radius:9px;padding:10px;border:1px solid #dbe5ef;background:#f8fbff}.summary span{display:block;color:#728397;font-size:7px;text-transform:uppercase;font-weight:900}.summary strong{display:block;margin-top:4px;color:#17457a;font-size:16px}.summary.net{background:#edf9f3;border-color:#cce9d9}.summary.net strong{color:#15875c}.preview-table{width:100%;border-collapse:collapse;margin-top:13px;font-size:9px}.preview-table th,.preview-table td{border:1px solid #d9e2ec;padding:7px}.preview-table th{background:#edf4fb;color:#42617d;font-size:7px;text-transform:uppercase}.preview-table .right{text-align:right}.preview-table .center{text-align:center}.reason-box{margin-top:12px;border-left:4px solid #ffb020;background:#fff8e9;padding:9px 11px;border-radius:7px;color:#6e5a2e;font-size:9px;line-height:1.45}.source-list{display:flex;gap:4px;flex-wrap:wrap}.source-pill{border-radius:999px;padding:3px 6px;background:#edf3f9;color:#4c6380;font-size:7px;font-weight:900}.source-pill.purchased{background:#eaf8f2;color:#137454}.source-pill.zero{background:#f3edfb;color:#6c4a99}.status-banner{margin-top:12px;border-radius:9px;padding:9px 11px;font-size:9px;font-weight:900}.status-banner.partial{background:var(--orangebg);color:var(--orange)}.status-banner.full{background:var(--redbg);color:var(--red)}
+.loading{padding:34px;text-align:center;color:#17457a;font-size:11px;font-weight:900}
+@media(max-width:1050px){.filters{grid-template-columns:1fr 1fr 2fr 1fr}.filters .action{grid-row:2}.kpis{grid-template-columns:repeat(3,1fr)}.meta-grid,.summary-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){body{padding:7px}.header{flex-direction:column}.header-actions{width:100%}.filters{grid-template-columns:1fr 1fr}.filters .invoice-field,.filters .type-field{grid-column:1/-1}.kpis{grid-template-columns:1fr 1fr}.meta-grid,.summary-grid{grid-template-columns:1fr 1fr}.dialog{margin:5px auto}.modal{padding:5px}}
+@media print{body{background:#fff;padding:0}body>.app{display:none!important}.modal{display:block!important;position:static!important;background:#fff!important;padding:0!important}.dialog{width:100%!important;margin:0!important;border-radius:0!important;box-shadow:none!important}.modal-head,.modal-actions{display:none!important}.modal-body{padding:0!important}}
+</style>
+<script src="supabase-invoice-reversal-adapter.js?v=20260914-v3-1"></script>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="brand"><h1>📜 BIG BROTHER — Reversal History</h1><p>Audit-safe history · Reversal Preview + Invoice After Reversal</p></div>
+    <div class="header-actions"><button class="btn btn-secondary" id="backBtn" type="button">↩ Invoice Reversal</button><button class="btn btn-primary" id="refreshBtn" type="button">↻ Refresh</button></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span>🔎 Search Reversal History</span><span id="resultLabel" style="font-size:9px;color:#718297">0 transactions</span></div>
+    <div class="card-body">
+      <div class="filters">
+        <div class="field"><label>From Date</label><input id="dateFrom" type="date"></div>
+        <div class="field"><label>To Date</label><input id="dateTo" type="date"></div>
+        <div class="field invoice-field"><label>Invoice No.</label><input id="invoiceNo" type="text" placeholder="Example: INV-0037"></div>
+        <div class="field type-field"><label>Reversal Type</label><select id="typeFilter"><option value="">All Types</option><option value="Partial Reversal">Partial Reversal</option><option value="Full Reversal">Full Reversal</option></select></div>
+        <button class="btn btn-primary action" id="searchBtn" type="button">Search</button>
+        <button class="btn btn-light action" id="resetBtn" type="button">Reset</button>
+      </div>
+      <div class="status" id="statusBox"></div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi" style="--a:#2f6fed"><span>Transactions</span><strong id="kpiCount">0</strong><small>Current results</small></div>
+    <div class="kpi" style="--a:#d28b11"><span>Partial Reversal</span><strong id="kpiPartial">0</strong><small>Transactions</small></div>
+    <div class="kpi" style="--a:#c2473e"><span>Full Reversal</span><strong id="kpiFull">0</strong><small>Transactions</small></div>
+    <div class="kpi" style="--a:#18864b"><span>Reversal USD</span><strong id="kpiUsd">$0.00</strong><small>USD invoices only</small></div>
+    <div class="kpi" style="--a:#7450a8"><span>Reversal KHR</span><strong id="kpiKhr">៛0</strong><small>KHR invoices only</small></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span>↩️ Reversal Transactions</span><span style="font-size:9px;color:#718297">Newest first</span></div>
+    <div class="table-wrap">
+      <table class="history-table">
+        <thead><tr><th>Reversal</th><th>Date / Time</th><th>Invoice</th><th>Customer</th><th>Location</th><th>Mode</th><th>Type</th><th class="amount">Reversal</th><th class="amount">Invoice After</th><th>By</th><th>Actions</th></tr></thead>
+        <tbody id="historyRows"><tr><td colspan="11" class="loading">Loading Reversal History…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="previewModal">
+  <div class="dialog">
+    <div class="modal-head"><strong id="modalTitle">Reversal Preview</strong><button class="modal-close" id="modalClose" type="button">×</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-actions"><button class="btn btn-secondary" id="printBtn" type="button">🖨️ Print</button><button class="btn btn-primary" id="doneBtn" type="button">Done</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const A=window.BBInvoiceReversalAdapter;
+const $=id=>document.getElementById(id);
+const state={all:[],visible:[],detailCache:new Map(),loading:false};
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=v=>Number(v||0)||0;
+const qty=v=>num(v).toLocaleString('en-US',{maximumFractionDigits:6});
+function money(v,c){return String(c||'USD').toUpperCase()==='KHR'?'៛'+Math.round(num(v)).toLocaleString('en-US'):'$'+num(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function setStatus(message,type='normal'){const el=$('statusBox');el.textContent=message||'';el.className='status'+(message?' show '+type:'')}
+function typeChip(v){const full=String(v||'').toLowerCase().includes('full');return `<span class="chip ${full?'chip-full':'chip-partial'}">${esc(v||'-')}</span>`}
+function modeChip(v){const batch=String(v||'').toUpperCase()==='BATCH';return `<span class="chip ${batch?'chip-batch':'chip-direct'}">${batch?'BATCH':'DIRECT'}</span>`}
+function sourcePills(arr){if(!Array.isArray(arr)||!arr.length)return '<span class="source-pill">AUTO / LEGACY</span>';return arr.map(x=>{const s=String(x.source||x.productCode||'AUTO').toUpperCase();const cls=s==='PURCHASED'?' purchased':s==='ZERO_COST'?' zero':'';return `<span class="source-pill${cls}">${esc(s)} · ${qty(x.qty)}</span>`}).join('')}
+function renderKpis(rows){let partial=0,full=0,usd=0,khr=0;rows.forEach(r=>{if(String(r.returnType||'').toLowerCase().includes('full'))full++;else partial++;if(String(r.currency||'USD').toUpperCase()==='KHR')khr+=num(r.reversalAmount);else usd+=num(r.reversalAmount)});$('kpiCount').textContent=rows.length.toLocaleString();$('kpiPartial').textContent=partial.toLocaleString();$('kpiFull').textContent=full.toLocaleString();$('kpiUsd').textContent=money(usd,'USD');$('kpiKhr').textContent=money(khr,'KHR');$('resultLabel').textContent=rows.length.toLocaleString()+' transaction'+(rows.length===1?'':'s')}
+function renderRows(){const type=$('typeFilter').value;state.visible=state.all.filter(r=>!type||r.returnType===type);renderKpis(state.visible);const body=$('historyRows');if(!state.visible.length){body.innerHTML='<tr><td colspan="11" class="empty">No reversal transactions found.</td></tr>';return}body.innerHTML=state.visible.map(r=>`<tr><td><span class="id">${esc(r.transactionId)}</span><span class="sub">${Number(r.lineCount||0)} line(s)</span></td><td>${esc(r.returnDate)}<span class="sub">${esc(r.executedAt||'')}</span></td><td><span class="id">${esc(r.invoiceNo)}</span><span class="sub">Original ${money(r.originalGrandTotal,r.currency)}</span></td><td>${esc(r.customer||'-')}<span class="sub">${esc(r.salesperson||'')}</span></td><td>${esc(r.locationName||r.locationCode||'-')}<span class="sub">${esc(r.locationCode||'')}</span></td><td>${modeChip(r.saleMode)}</td><td>${typeChip(r.returnType)}<span class="sub">${esc(r.reason||'')}</span></td><td class="amount">${money(r.reversalAmount,r.currency)}</td><td class="amount">${money(r.invoiceAfterReversal,r.currency)}</td><td>${esc(r.performedBy||'Legacy / System')}</td><td><div class="row-actions"><button type="button" data-action="reversal" data-id="${esc(r.transactionId)}">↩ Preview</button><button type="button" data-action="invoice" data-id="${esc(r.transactionId)}">🧾 After Reversal</button></div></td></tr>`).join('')}
+async function load(){if(state.loading)return;state.loading=true;$('searchBtn').disabled=true;$('refreshBtn').disabled=true;setStatus('Loading Reversal History…','normal');$('historyRows').innerHTML='<tr><td colspan="11" class="loading">Loading Reversal History…</td></tr>';try{const d=await A.history({dateFrom:$('dateFrom').value||null,dateTo:$('dateTo').value||null,invoiceNo:$('invoiceNo').value,limit:250});state.all=Array.isArray(d.transactions)?d.transactions:[];state.detailCache.clear();setStatus('');renderRows()}catch(err){setStatus(err?.message||String(err),'error');state.all=[];renderRows()}finally{state.loading=false;$('searchBtn').disabled=false;$('refreshBtn').disabled=false}}
+async function getDetail(id){if(state.detailCache.has(id))return state.detailCache.get(id);const d=await A.historyDetail(id);state.detailCache.set(id,d);return d}
+function commonMeta(inv,t){return `<div class="meta-grid"><div class="meta"><span>Invoice No.</span><strong>${esc(inv.invoiceNo)}</strong></div><div class="meta"><span>Invoice Date</span><strong>${esc(inv.invoiceDate)}</strong></div><div class="meta"><span>Customer</span><strong>${esc(inv.customer||'-')}</strong></div><div class="meta"><span>Location</span><strong>${esc(inv.locationName||inv.locationCode||'-')}</strong></div><div class="meta"><span>Salesperson</span><strong>${esc(inv.salesperson||'-')}</strong></div><div class="meta"><span>Sale Mode</span><strong>${esc(inv.saleMode||'-')}</strong></div><div class="meta"><span>Currency</span><strong>${esc(inv.currency||'USD')}</strong></div><div class="meta"><span>Reversal ID</span><strong>${esc(t.transactionId||'-')}</strong></div></div>`}
+function reversalPreview(d){const t=d.transaction||{},inv=d.invoiceAfterReversal||{},lines=Array.isArray(t.lines)?t.lines:[];return `<h2 class="preview-title">Invoice Reversal Preview</h2><div class="preview-sub">Audit transaction captured at ${esc(t.executedAt||'-')}</div>${commonMeta(inv,t)}<div class="summary-grid"><div class="summary"><span>Original Invoice</span><strong>${money(inv.originalGrandTotal,inv.currency)}</strong></div><div class="summary"><span>This Reversal</span><strong>${money(t.reversalAmount,inv.currency)}</strong></div><div class="summary"><span>Reversal Qty</span><strong>${qty(t.reversalQty)}</strong></div><div class="summary net"><span>Invoice After</span><strong>${money(inv.netGrandTotalAfterReversal,inv.currency)}</strong></div></div><div class="reason-box"><b>Type:</b> ${esc(t.returnType||'-')} &nbsp; · &nbsp; <b>Reason:</b> ${esc(t.reason||'-')}<br><b>Note:</b> ${esc(t.note||'-')}<br><b>Performed By:</b> ${esc(t.performedBy||'Legacy / System')}</div><table class="preview-table"><thead><tr><th>Return ID</th><th>Product</th><th>Qty</th><th>Unit Price</th><th>Amount</th><th>Stock Source</th></tr></thead><tbody>${lines.map(x=>`<tr><td>${esc(x.returnId)}</td><td><b>${esc(x.productName||x.productCode||'-')}</b><br><span class="sub">${esc(x.productCode||'')}</span></td><td class="center">${qty(x.qty)}</td><td class="right">${money(x.unitPrice,inv.currency)}</td><td class="right"><b>${money(x.amount,inv.currency)}</b></td><td><div class="source-list">${sourcePills(x.stockAllocations)}</div></td></tr>`).join('')}</tbody></table>`}
+function invoiceAfterPreview(d){const t=d.transaction||{},inv=d.invoiceAfterReversal||{},items=Array.isArray(inv.items)?inv.items:[];const full=String(inv.reversalStatus||'').includes('FULLY');return `<h2 class="preview-title">Invoice After Reversal</h2><div class="preview-sub">Historical invoice state immediately after ${esc(t.transactionId||'this reversal')}</div>${commonMeta(inv,t)}<div class="status-banner ${full?'full':'partial'}">${esc(inv.reversalStatus||'PARTIALLY REVERSED')} · Recorded invoice status: ${esc(inv.recordedInvoiceStatus||'-')}</div><div class="summary-grid"><div class="summary"><span>Original Grand Total</span><strong>${money(inv.originalGrandTotal,inv.currency)}</strong></div><div class="summary"><span>This Reversal</span><strong>${money(inv.thisReversalAmount,inv.currency)}</strong></div><div class="summary"><span>Cumulative Reversal</span><strong>${money(inv.cumulativeReversalAmount,inv.currency)}</strong></div><div class="summary net"><span>Net Sale After Reversal</span><strong>${money(inv.netGrandTotalAfterReversal,inv.currency)}</strong></div></div><table class="preview-table"><thead><tr><th>Product</th><th>Original Qty</th><th>This Reversal</th><th>Total Reversed</th><th>Remaining Qty</th><th>Unit Price</th><th>Remaining Value</th></tr></thead><tbody>${items.map(x=>`<tr><td><b>${esc(x.productName||x.productCode||'-')}</b><br><span class="sub">${esc(x.productCode||'')} · ${esc(x.unit||'')}</span></td><td class="center">${qty(x.originalQty)}</td><td class="center">${qty(x.reversedThisTransactionQty)}</td><td class="center">${qty(x.cumulativeReversedQty)}</td><td class="center"><b>${qty(x.remainingQty)}</b></td><td class="right">${money(x.unitPrice,inv.currency)}</td><td class="right"><b>${money(x.remainingLineValue,inv.currency)}</b></td></tr>`).join('')}</tbody></table><div class="reason-box">This preview preserves the original invoice and shows the effective sale state after the selected reversal transaction. Later reversals are not included unless they had already occurred by this transaction.</div>`}
+async function openPreview(id,kind){$('modalTitle').textContent=kind==='invoice'?'Invoice After Reversal':'Reversal Preview';$('modalBody').innerHTML='<div class="loading">Loading preview…</div>';$('previewModal').classList.add('open');try{const d=await getDetail(id);$('modalBody').innerHTML=kind==='invoice'?invoiceAfterPreview(d):reversalPreview(d)}catch(err){$('modalBody').innerHTML=`<div class="status show error">${esc(err?.message||String(err))}</div>`}}
+function closeModal(){$('previewModal').classList.remove('open')}
+$('historyRows').addEventListener('click',e=>{const b=e.target.closest('button[data-action]');if(!b)return;openPreview(b.dataset.id,b.dataset.action)});
+$('searchBtn').addEventListener('click',load);$('refreshBtn').addEventListener('click',load);$('typeFilter').addEventListener('change',renderRows);$('invoiceNo').addEventListener('keydown',e=>{if(e.key==='Enter')load()});$('resetBtn').addEventListener('click',()=>{$('dateFrom').value='';$('dateTo').value='';$('invoiceNo').value='';$('typeFilter').value='';load()});$('backBtn').addEventListener('click',()=>{location.href='./?embed=1'});$('modalClose').addEventListener('click',closeModal);$('doneBtn').addEventListener('click',closeModal);$('previewModal').addEventListener('click',e=>{if(e.target===$('previewModal'))closeModal()});$('printBtn').addEventListener('click',()=>window.print());document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+if(!A){setStatus('Invoice Reversal adapter did not load. Refresh the page.','error')}else load();
+})();
+</script>
+</body>
+</html>
