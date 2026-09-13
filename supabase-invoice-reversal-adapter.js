@@ -1,6 +1,6 @@
 /* ============================================================
    BIG BROTHER ACCOUNTING SYSTEM
-   INVOICE REVERSAL — SUPABASE ADAPTER V2
+   INVOICE REVERSAL — SUPABASE ADAPTER V3
    ============================================================ */
 
 (function () {
@@ -451,11 +451,185 @@
 
 
 
+  /* ==========================================================
+     REVERSAL HISTORY V1
+     ========================================================== */
+
+  async function history(filters = {}) {
+
+    return rpc(
+      'bb_invoice_reversal_history',
+      {
+        p_date_from:
+          filters.dateFrom
+          ||
+          null,
+
+        p_date_to:
+          filters.dateTo
+          ||
+          null,
+
+        p_invoice_no:
+          String(
+            filters.invoiceNo
+            ||
+            ''
+          )
+          .trim(),
+
+        p_limit:
+          Number(
+            filters.limit
+            ||
+            200
+          )
+      }
+    );
+
+  }
+
+
+
+  async function historyDetail(returnId) {
+
+    return rpc(
+      'bb_invoice_reversal_history_detail',
+      {
+        p_return_id:
+          String(
+            returnId
+            ||
+            ''
+          )
+          .trim()
+      }
+    );
+
+  }
+
+
+
   async function accessProfile() {
 
     return rpc(
       'bb_current_access_profile'
     );
+
+  }
+
+
+
+  /* ==========================================================
+     REVERSAL HISTORY SHORTCUT
+     ========================================================== */
+
+  function installHistoryShortcut() {
+
+    if (
+      /\/history\.html$/i.test(
+        location.pathname
+      )
+    ) {
+      return;
+    }
+
+
+    if (
+      document.getElementById(
+        'reversalHistoryShortcut'
+      )
+    ) {
+      return;
+    }
+
+
+    const badge =
+      document.getElementById(
+        'userBadge'
+      );
+
+
+    if (!badge?.parentElement) {
+      return;
+    }
+
+
+    const button =
+      document.createElement(
+        'button'
+      );
+
+
+    button.id =
+      'reversalHistoryShortcut';
+
+
+    button.type =
+      'button';
+
+
+    button.textContent =
+      '📜 Reversal History';
+
+
+    button.title =
+      'Open Reversal History';
+
+
+    button.style.cssText =
+      'border:1px solid #c8d8e8;background:#fff;color:#17457a;border-radius:9px;padding:8px 11px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;margin-left:auto';
+
+
+    button.addEventListener(
+      'click',
+      function () {
+
+        location.href =
+          'history.html?embed=1';
+
+      }
+    );
+
+
+    badge.parentElement.insertBefore(
+      button,
+      badge
+    );
+
+  }
+
+
+
+  function scheduleHistoryShortcut() {
+
+    if (
+      document.readyState
+      ===
+      'loading'
+    ) {
+
+      document.addEventListener(
+        'DOMContentLoaded',
+        function () {
+          setTimeout(
+            installHistoryShortcut,
+            0
+          );
+        },
+        {
+          once:true
+        }
+      );
+
+    } else {
+
+      setTimeout(
+        installHistoryShortcut,
+        0
+      );
+
+    }
 
   }
 
@@ -475,6 +649,10 @@
 
     save,
 
+    history,
+
+    historyDetail,
+
     ensureSession,
 
     refreshSession,
@@ -484,6 +662,9 @@
     accessProfile
 
   };
+
+
+  scheduleHistoryShortcut();
 
 
 })();
