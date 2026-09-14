@@ -1,0 +1,399 @@
+/* BIG BROTHER — Invoice Reversal Mobile Skin V1
+   Mobile-only presentation. Desktop index.html remains untouched. */
+
+html,body{
+  background:#f4f7fb!important;
+  overflow-x:hidden!important;
+}
+
+body{
+  padding:7px!important;
+}
+
+.app{
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:0 0 86px!important;
+}
+
+.header{
+  align-items:center!important;
+  gap:8px!important;
+  margin:0 1px 8px!important;
+}
+.header .brand{min-width:0!important}
+.header .brand h1{
+  margin:0!important;
+  font-size:18px!important;
+  line-height:1.15!important;
+  letter-spacing:.2px!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+.header .brand p,
+#userBadge,
+#reversalHistoryShortcut{
+  display:none!important;
+}
+
+.card{
+  margin-bottom:8px!important;
+  border-radius:12px!important;
+  box-shadow:0 2px 8px rgba(23,63,119,.045)!important;
+}
+.card-title{
+  min-height:39px!important;
+  padding:8px 10px!important;
+  font-size:11px!important;
+}
+.card-body{
+  padding:9px!important;
+}
+
+.search-grid{
+  grid-template-columns:minmax(0,1fr) 92px!important;
+  gap:6px!important;
+  align-items:end!important;
+}
+.field label{
+  margin-bottom:3px!important;
+  font-size:7.5px!important;
+}
+input,select{
+  min-height:38px!important;
+  height:38px!important;
+  padding:7px 8px!important;
+  border-radius:8px!important;
+  font-size:12px!important;
+}
+textarea{
+  min-height:58px!important;
+  padding:8px!important;
+  font-size:11px!important;
+}
+.primary-btn,.secondary-btn{
+  min-height:38px!important;
+  padding:6px 8px!important;
+  border-radius:8px!important;
+  font-size:9px!important;
+  line-height:1.15!important;
+}
+#loadInvoiceBtn{
+  min-width:0!important;
+  white-space:normal!important;
+}
+#refreshInvoicesBtn{
+  min-height:30px!important;
+  height:30px!important;
+  padding:4px 8px!important;
+  font-size:8px!important;
+}
+.invoice-input-wrap input{
+  padding-right:37px!important;
+}
+.dropdown-toggle{
+  width:36px!important;
+  font-size:11px!important;
+}
+.invoice-dropdown{
+  max-height:45dvh!important;
+  border-radius:10px!important;
+}
+.invoice-option{
+  padding:8px 9px!important;
+}
+.invoice-option-no{font-size:11px!important}
+.invoice-option-date{font-size:8px!important}
+.invoice-option-bottom{font-size:8px!important}
+.status{
+  margin-top:7px!important;
+  padding:7px 8px!important;
+  font-size:9px!important;
+}
+
+/* Compact invoice summary */
+.invoice-meta{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:6px!important;
+}
+.meta-box{
+  min-height:48px!important;
+  padding:7px!important;
+  border-radius:8px!important;
+}
+.meta-box span{font-size:6.8px!important}
+.meta-box strong{
+  margin-top:3px!important;
+  font-size:9.5px!important;
+  line-height:1.2!important;
+}
+.mode-chip{
+  padding:3px 6px!important;
+  font-size:7px!important;
+}
+
+/* Source legend */
+.source-legend{
+  gap:3px!important;
+  padding:7px 9px!important;
+  font-size:7.5px!important;
+  line-height:1.35!important;
+}
+.source-chip{
+  padding:3px 6px!important;
+  margin:1px!important;
+  font-size:7px!important;
+}
+
+/* Product table becomes touch-friendly mobile cards. */
+.table-wrap{
+  overflow:visible!important;
+  padding:0 8px 8px!important;
+}
+.products-table{
+  display:block!important;
+  width:100%!important;
+  min-width:0!important;
+  table-layout:auto!important;
+}
+.products-table thead{display:none!important}
+.products-table tbody{
+  display:grid!important;
+  gap:8px!important;
+  width:100%!important;
+}
+.products-table tbody tr{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  grid-template-areas:
+    "product product product"
+    "sold returned available"
+    "original original original"
+    "reverse reverse amount"
+    "source source source"!important;
+  column-gap:6px!important;
+  row-gap:6px!important;
+  width:100%!important;
+  padding:9px!important;
+  border:1px solid #dfe7f0!important;
+  border-left:3px solid #2f6fed!important;
+  border-radius:11px!important;
+  background:#fff!important;
+  box-shadow:0 2px 7px rgba(23,63,119,.04)!important;
+}
+.products-table tbody tr.fully-reversed{
+  opacity:.62!important;
+  border-left-color:#9aa8b8!important;
+}
+.products-table td{
+  display:block!important;
+  min-width:0!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  text-align:left!important;
+  font-size:9px!important;
+  line-height:1.25!important;
+}
+.products-table td::before{
+  display:block;
+  margin-bottom:3px;
+  color:#8391a1;
+  font-size:6.5px;
+  font-weight:900;
+  letter-spacing:.15px;
+  text-transform:uppercase;
+}
+.products-table td:nth-child(1){grid-area:product!important;padding-bottom:2px!important}
+.products-table td:nth-child(2){grid-area:sold!important}
+.products-table td:nth-child(3){grid-area:returned!important}
+.products-table td:nth-child(4){grid-area:available!important}
+.products-table td:nth-child(5){grid-area:original!important;padding:7px!important;border:1px solid #edf1f5!important;border-radius:8px!important;background:#f8fafc!important}
+.products-table td:nth-child(6){grid-area:reverse!important}
+.products-table td:nth-child(7){grid-area:source!important;padding:7px!important;border:1px solid #edf1f5!important;border-radius:8px!important;background:#fbfcfe!important}
+.products-table td:nth-child(8){grid-area:amount!important;text-align:right!important}
+.products-table td:nth-child(2)::before{content:"Sold"}
+.products-table td:nth-child(3)::before{content:"Returned"}
+.products-table td:nth-child(4)::before{content:"Available"}
+.products-table td:nth-child(5)::before{content:"Original / Remaining Source"}
+.products-table td:nth-child(6)::before{content:"Reverse Qty"}
+.products-table td:nth-child(7)::before{content:"Return Source"}
+.products-table td:nth-child(8)::before{content:"Amount"}
+.product-name{
+  font-size:12px!important;
+  line-height:1.2!important;
+}
+.product-code{font-size:7px!important}
+.source-summary{
+  min-width:0!important;
+  width:100%!important;
+}
+.source-detail{
+  margin-top:3px!important;
+  font-size:7.5px!important;
+  line-height:1.35!important;
+}
+.qty-input{
+  width:100%!important;
+  max-width:none!important;
+  height:36px!important;
+  min-height:36px!important;
+  padding:5px 7px!important;
+  font-size:12px!important;
+  text-align:center!important;
+}
+.mixed-controls{
+  grid-template-columns:1fr 1fr!important;
+  gap:5px!important;
+}
+.mixed-control label{font-size:6.5px!important}
+.mixed-control input{
+  height:34px!important;
+  min-height:34px!important;
+  font-size:10px!important;
+}
+.line-warning,.line-error,.line-ok{
+  margin-top:3px!important;
+  font-size:7.5px!important;
+}
+
+/* Reversal details */
+.controls-grid{
+  grid-template-columns:1fr 1fr!important;
+  gap:7px!important;
+}
+.controls-grid .reason-field{
+  grid-column:1 / -1!important;
+}
+.note-grid{
+  grid-template-columns:1fr!important;
+  gap:6px!important;
+  margin-top:7px!important;
+}
+#cogsInfo{
+  margin-top:0!important;
+  font-size:8px!important;
+  line-height:1.35!important;
+}
+.total-panel{
+  justify-content:space-between!important;
+  gap:8px!important;
+  margin-top:9px!important;
+  padding-top:8px!important;
+}
+.total-label{font-size:9px!important}
+.total-value{font-size:20px!important}
+
+/* Sticky execution bar */
+.actions{
+  position:sticky!important;
+  bottom:0!important;
+  z-index:50!important;
+  display:grid!important;
+  grid-template-columns:90px minmax(0,1fr)!important;
+  gap:7px!important;
+  margin:10px -9px -9px!important;
+  padding:8px 9px calc(8px + env(safe-area-inset-bottom))!important;
+  border-top:1px solid #dce5ef!important;
+  background:rgba(255,255,255,.97)!important;
+  backdrop-filter:blur(8px)!important;
+}
+.actions .secondary-btn,
+.actions .save-btn{
+  width:100%!important;
+  min-height:46px!important;
+  margin:0!important;
+  border-radius:9px!important;
+  font-size:10px!important;
+}
+
+/* Full-screen receipt viewer; the receipt body itself is scaled proportionally. */
+@media screen{
+  .receipt-modal{
+    padding:0!important;
+    overflow:hidden!important;
+    background:#eef2f7!important;
+  }
+  .receipt-modal.open{
+    display:block!important;
+  }
+  .receipt-dialog{
+    display:flex!important;
+    flex-direction:column!important;
+    width:100%!important;
+    max-width:none!important;
+    height:100dvh!important;
+    margin:0!important;
+    border-radius:0!important;
+    background:#eef2f7!important;
+    overflow:hidden!important;
+    box-shadow:none!important;
+  }
+  .receipt-head{
+    flex:0 0 auto!important;
+    min-height:49px!important;
+    padding:8px 10px!important;
+    font-size:12px!important;
+  }
+  .receipt-close{
+    width:34px!important;
+    height:34px!important;
+    padding:0!important;
+    font-size:21px!important;
+  }
+  .bb-reversal-receipt-scroll{
+    flex:1 1 auto!important;
+    min-height:0!important;
+    overflow:auto!important;
+    padding:6px!important;
+    background:#eef2f7!important;
+  }
+  .bb-reversal-receipt-stage{
+    position:relative!important;
+    min-height:1px!important;
+    margin:0 auto!important;
+    --bb-receipt-scale:1;
+  }
+  .bb-reversal-receipt-stage > .receipt-body{
+    position:absolute!important;
+    left:0!important;
+    top:0!important;
+    width:760px!important;
+    min-width:760px!important;
+    max-width:760px!important;
+    margin:0!important;
+    padding:18px!important;
+    background:#fff!important;
+    transform:scale(var(--bb-receipt-scale))!important;
+    transform-origin:top left!important;
+  }
+  .receipt-actions{
+    position:relative!important;
+    z-index:10!important;
+    flex:0 0 auto!important;
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:7px!important;
+    padding:7px 7px calc(8px + env(safe-area-inset-bottom))!important;
+    border-top:1px solid #d7e0ea!important;
+    background:rgba(244,247,250,.98)!important;
+  }
+  .receipt-actions button{
+    width:100%!important;
+    min-height:43px!important;
+    font-size:9px!important;
+  }
+}
+
+@media(max-width:380px){
+  body{padding:5px!important}
+  .header .brand h1{font-size:16px!important}
+  .card-body{padding:8px!important}
+  .search-grid{grid-template-columns:minmax(0,1fr) 84px!important}
+  .invoice-meta{gap:5px!important}
+  .products-table tbody tr{padding:8px!important;gap:5px!important}
+  .products-table td{font-size:8.5px!important}
+  .actions{margin:9px -8px -8px!important;padding-left:8px!important;padding-right:8px!important}
+}
