@@ -141,7 +141,7 @@ async function start(){
     await assertPermission();
     mobileCss=await fetch('mobile-reversal.css?v=20260915-1',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Could not load mobile reversal style.');return r.text()});
     frame.addEventListener('load',()=>{setTimeout(enhance,40);setTimeout(enhance,300);setTimeout(enhance,1000)});
-    frame.src='index.html?embed=1&mobileSkin=1&v=20260915-1';
+    frame.src='index.html?embed=1&mobileSkin=1&v=20260924-invoiceid1';
   }catch(error){
     console.error('Invoice Reversal Mobile:',error);
     showError(error);
