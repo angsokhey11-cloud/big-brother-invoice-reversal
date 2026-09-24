@@ -410,7 +410,32 @@
 
 
 
-  async function detail(invoiceNo) {
+  async function detail(invoiceNo, invoiceId) {
+
+    const stableId =
+      String(
+        invoiceId
+        ||
+        ''
+      )
+      .trim();
+
+
+    if (stableId) {
+
+      return rpc(
+
+        'bb_invoice_reversal_detail_by_id_v2',
+
+        {
+          p_invoice_id:
+            stableId
+        }
+
+      );
+
+    }
+
 
     return rpc(
 
@@ -434,15 +459,28 @@
 
   async function save(payload) {
 
+    const body =
+      payload
+      ||
+      {};
+
+
     return rpc(
 
-      'bb_invoice_reversal_save_v2',
+      String(
+        body.invoiceId
+        ||
+        ''
+      )
+      .trim()
+        ?
+        'bb_invoice_reversal_save_by_id_v2'
+        :
+        'bb_invoice_reversal_save_v2',
 
       {
         p_payload:
-          payload
-          ||
-          {}
+          body
       }
 
     );
