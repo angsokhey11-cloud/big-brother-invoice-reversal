@@ -2114,7 +2114,10 @@ button:disabled{
       new Map(),
 
     saving:
-      false
+      false,
+
+    selectedInvoiceId:
+      ''
 
   };
 
@@ -2649,6 +2652,7 @@ button:disabled{
   type="button"
   class="invoice-option ${fully ? 'full' : ''}"
   data-invoice-no="${esc(invoice.invoiceNo)}"
+  data-invoice-id="${esc(invoice.invoiceId || '')}"
 >
 
   <div class="invoice-option-top">
@@ -2725,7 +2729,8 @@ button:disabled{
      ========================================================== */
 
   async function loadInvoice(
-    invoiceNo
+    invoiceNo,
+    invoiceId
   ) {
 
     const no =
@@ -2747,8 +2752,59 @@ button:disabled{
     }
 
 
+    let stableId =
+      clean(
+        invoiceId
+      );
+
+
+    if (!stableId) {
+
+      const exactMatches =
+        state.recent
+          .filter(
+            row =>
+              clean(
+                row.invoiceNo
+              )
+              .toLowerCase()
+              ===
+              no.toLowerCase()
+          );
+
+
+      if (exactMatches.length > 1) {
+
+        openDropdown();
+
+        setStatus(
+          'This Invoice No. is used by more than one invoice. Choose the correct Customer / Date from the list.',
+          'error'
+        );
+
+        return;
+
+      }
+
+
+      if (exactMatches.length === 1) {
+
+        stableId =
+          clean(
+            exactMatches[0].invoiceId
+          );
+
+      }
+
+    }
+
+
     invoiceNoInput.value =
       no;
+
+
+    state.selectedInvoiceId =
+      stableId;
 
 
     closeDropdown();
@@ -2769,7 +2825,8 @@ button:disabled{
 
       const data =
         await A.detail(
-          no
+          no,
+          stableId
         );
 
 
@@ -2790,6 +2847,14 @@ button:disabled{
         data;
 
 
+      state.selectedInvoiceId =
+        clean(
+          data?.invoice?.invoiceId
+          ||
+          stableId
+        );
+
+
       renderInvoice();
 
 
@@ -2807,6 +2872,9 @@ button:disabled{
 
       state.detail =
         null;
+
+      state.selectedInvoiceId =
+        '';
 
 
       hideInvoice();
@@ -2833,8 +2901,6 @@ button:disabled{
     }
 
   }
-
-
 
   /* ==========================================================
      RENDER INVOICE
@@ -4674,6 +4740,11 @@ ${chips}
 
       const payload = {
 
+        invoiceId:
+          invoice.invoiceId
+          ||
+          state.selectedInvoiceId,
+
         invoiceNo:
           invoice.invoiceNo,
 
@@ -4734,7 +4805,10 @@ ${chips}
 
 
       await loadInvoice(
-        invoice.invoiceNo
+        invoice.invoiceNo,
+        invoice.invoiceId
+        ||
+        state.selectedInvoiceId
       );
 
 
@@ -5084,6 +5158,10 @@ ${chips}
       null;
 
 
+    state.selectedInvoiceId =
+      '';
+
+
     invoiceNoInput.value =
       '';
 
@@ -5229,12 +5307,19 @@ ${chips}
         button.dataset.invoiceNo;
 
 
+      const invoiceId =
+        button.dataset.invoiceId
+        ||
+        '';
+
+
       invoiceNoInput.value =
         invoiceNo;
 
 
       loadInvoice(
-        invoiceNo
+        invoiceNo,
+        invoiceId
       );
 
     }
@@ -5464,12 +5549,21 @@ ${chips}
 
       if (invoiceNo) {
 
+        const invoiceId =
+          clean(
+            params.get(
+              'invoiceId'
+            )
+          );
+
+
         invoiceNoInput.value =
           invoiceNo;
 
 
         await loadInvoice(
-          invoiceNo
+          invoiceNo,
+          invoiceId
         );
 
       }
