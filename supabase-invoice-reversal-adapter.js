@@ -471,6 +471,17 @@
 
 
 
+  async function postcloseOptions(invoiceId) {
+    return rpc('bb_invoice_reversal_postclose_options_v1', {
+      p_invoice_id: String(invoiceId || '').trim()
+    });
+  }
+
+  async function postcloseSave(payload) {
+    return rpc('bb_invoice_reversal_postclose_save_v1', {p_payload: payload || {}});
+  }
+
+
   async function save(payload) {
 
     const body =
@@ -702,6 +713,10 @@
     detail,
 
     save,
+
+    postcloseOptions,
+
+    postcloseSave,
 
     history,
 
