@@ -56,8 +56,11 @@ BEGIN
  SELECT b.status INTO v_status FROM public.stock_batches b WHERE b.batch_id=v_invoice.batch_id;
  SELECT s.default_warehouse_location_code INTO v_warehouse
  FROM public.stock_cutover_state s WHERE s.state_id='MAIN';
- IF v_status IS DISTINCT FROM 'Closed' THEN
+ IF upper(coalesce(v_status,''))<>'CLOSED' THEN
   RETURN jsonb_build_object('success',true,'isPostClose',false,'originalBatchId',v_invoice.batch_id);
+ END IF;
+ IF nullif(trim(coalesce(v_warehouse,'')),'') IS NULL THEN
+  RAISE EXCEPTION 'Warehouse destination is not configured in Stock Cutover State';
  END IF;
  SELECT coalesce(jsonb_agg(jsonb_build_object(
    'batchId',q.batch_id,
@@ -78,7 +81,7 @@ BEGIN
    ORDER BY b.batch_date DESC,b.batch_id DESC LIMIT 70
  )q;
  RETURN jsonb_build_object('success',true,'isPostClose',true,
-   'originalBatchId',v_invoice.batch_id,'warehouseLocation',coalesce(v_warehouse,'PP-01'),
+   'originalBatchId',v_invoice.batch_id,'warehouseLocation',v_warehouse,
    'openBatches',v_batches);
 END;
 $postclose_options$;
