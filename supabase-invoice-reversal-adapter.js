@@ -410,6 +410,20 @@
 
 
 
+  /* Search the entire permitted invoice history by invoice number, customer or date.
+   * Unlike recent(50), this RPC is database-filtered BEFORE its 50-row cap.
+   */
+  async function search(query, limit = 50) {
+    return rpc(
+      'bb_invoice_reversal_search_v2',
+      {
+        p_query: String(query || '').trim(),
+        p_limit: Math.min(Math.max(Number(limit) || 50, 1), 50)
+      }
+    );
+  }
+
+
   async function detail(invoiceNo, invoiceId) {
 
     const stableId =
@@ -682,6 +696,8 @@
     rpc,
 
     recent,
+
+    search,
 
     detail,
 
