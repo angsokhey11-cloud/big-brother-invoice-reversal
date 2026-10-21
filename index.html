@@ -5041,6 +5041,8 @@ ${state.postcloseConfig?.isPostClose
         Stock Source
       </th>
 
+      ${result.destinationMode === 'POST_CLOSE' ? '<th>Destination</th>' : ''}
+
       <th>
         Amount
       </th>
@@ -5075,6 +5077,11 @@ ${state.postcloseConfig?.isPostClose
   <td>
     ${esc(sourceLabel(row.stockAllocations))}
   </td>
+
+  ${result.destinationMode === 'POST_CLOSE'
+     ? '<td>' + esc((Array.isArray(row.destinations) ? row.destinations : []).map(d =>
+       d.productCode + ' → ' + (d.destinationType === 'WAREHOUSE' ? 'Warehouse' : 'Batch '+d.batchId)
+     ).join(' | ')) + '</td>' : ''}
 
   <td style="text-align:right">
     ${money(row.amount)}
