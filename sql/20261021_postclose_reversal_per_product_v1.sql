@@ -389,6 +389,18 @@ BEGIN
     '    insert into public.sales_returns(',
     v_inject||'    insert into public.sales_returns(');
  v_patched:=replace(v_patched,'''Invoice Reversal V2''','''Post-Close Invoice Reversal V1''');
+ -- Show the exact route decisions in the signed reversal receipt and audit result.
+ v_patched:=replace(v_patched,
+   '          ''stockAllocations'','||E'\n'||'            v_saved_alloc',
+   '          ''stockAllocations'','||E'\n'||'            v_saved_alloc,'||E'\n'||
+   '          ''destinations'','||E'\n'||'            v_destinations');
+ v_patched:=replace(v_patched,
+   '      ''version'','||E'\n'||'        ''INVOICE-REVERSAL-V2'',',
+   '      ''version'','||E'\n'||'        ''INVOICE-REVERSAL-POSTCLOSE-V1'','||E'\n'||
+   '      ''destinationMode'','||E'\n'||'        ''POST_CLOSE'',');
+ IF position('''destinationMode''' in v_patched)=0
+    OR position('''destinations''' in v_patched)=0
+ THEN RAISE EXCEPTION 'Post-close receipt destination fields missing'; END IF;
  EXECUTE v_patched;
 
  -- Reconciliation of the CLOSED ORIGINAL must keep its historical gross
