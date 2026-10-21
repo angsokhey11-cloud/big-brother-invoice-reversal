@@ -99,6 +99,7 @@ DECLARE v_route public.bb_postclose_reversal_routes%rowtype;
         v_code text; v_type text; v_batch_id text; v_source text;
         v_qty numeric; v_purchased numeric; v_zero numeric; v_total numeric:=0;
         v_prior_p numeric; v_prior_z numeric; v_source_qty numeric;
+        v_sale_p numeric; v_sale_z numeric; v_sale_p_value numeric;
         v_bucket text; v_location text; v_cost numeric;
         v_movement_id text; v_transaction_id text; v_product text; v_unit text;
         v_warehouse_location text; v_match_count integer;
@@ -165,21 +166,56 @@ BEGIN
    v_location:=v_warehouse_location;
   END IF;
 
-  SELECT coalesce(sum(qty) FILTER (WHERE stock_source='PURCHASED'),0),
-         coalesce(sum(qty) FILTER (WHERE stock_source='ZERO_COST'),0)
-    INTO v_prior_p,v_prior_z
-  FROM public.bb_postclose_reversal_allocations
-  WHERE original_batch_id=v_invoice.batch_id AND product_code=v_code;
-  v_purchased:=least(v_qty,greatest(coalesce(v_original.purchased_sold_qty_snapshot,0)-v_prior_p,0));
-  v_zero:=v_qty-v_purchased;
-  IF v_zero>greatest(coalesce(v_original.zero_cost_sold_qty_snapshot,0)-v_prior_z,0)+0.000001
-  THEN RAISE EXCEPTION 'Post-close source stock shortage for %',v_code; END IF;
-  IF v_purchased+v_zero>v_qty+0.000001
-  THEN RAISE EXCEPTION 'Post-close source stock mismatch'; END IF;
+  -- Restore precisely the products and cost source sold by THIS original line.
+  -- Original BATCH_SALE activity contains a unique BATCH-INVOICE:<lineId>:... key.
+  -- Using that key prevents invoice-number reuse from mixing customers or invoices.
+  SELECT
+    coalesce(sum(sa.qty) FILTER (WHERE sa.from_bucket='BATCH_PENDING'),0),
+    coalesce(sum(sa.qty) FILTER (WHERE sa.from_bucket='BATCH_ZERO_COST'),0),
+    coalesce(sum(sa.line_value) FILTER (WHERE sa.from_bucket='BATCH_PENDING'),0)
+  INTO v_sale_p,v_sale_z,v_sale_p_value
+  FROM public.stock_activity sa
+  WHERE sa.movement_type='BATCH_SALE'
+    AND sa.batch_id=v_invoice.batch_id
+    AND sa.related_invoice_no=v_invoice.invoice_no
+    AND sa.customer_id IS NOT DISTINCT FROM v_invoice.customer_id
+    AND sa.product_code=v_code
+    AND split_part(sa.client_request_id,':',1)='BATCH-INVOICE'
+    AND split_part(sa.client_request_id,':',2)=new.line_id
+    AND sa.qty>0;
 
+  -- Include any earlier normal (pre-close) or post-close returns of this line.
+  SELECT
+    coalesce(sum(sa.qty) FILTER (
+      WHERE sa.to_bucket IN ('BATCH_PENDING','WAREHOUSE_GOOD')),0),
+    coalesce(sum(sa.qty) FILTER (
+      WHERE sa.to_bucket IN ('BATCH_ZERO_COST','WAREHOUSE_ZERO_COST')),0)
+  INTO v_prior_p,v_prior_z
+  FROM public.stock_activity sa
+  JOIN public.sales_returns sr ON sr.return_id=sa.reference_no
+  WHERE sr.invoice_id=new.invoice_id
+    AND sr.line_id=new.line_id
+    AND sr.return_id IS DISTINCT FROM new.return_id
+    AND sa.product_code=v_code
+    AND sa.movement_type IN ('BATCH_SALE_RETURN','POSTCLOSE_SALE_RETURN')
+    AND sa.from_bucket='EXTERNAL';
+
+  IF v_sale_p+v_sale_z<=0.000001 THEN
+    RAISE EXCEPTION 'Original invoice line stock provenance missing for %; no estimated COGS permitted',v_code;
+  END IF;
+  v_purchased:=least(v_qty,greatest(v_sale_p-v_prior_p,0));
+  v_zero:=v_qty-v_purchased;
+  IF v_zero>greatest(v_sale_z-v_prior_z,0)+0.000001 THEN
+    RAISE EXCEPTION 'Return qty exceeds original sold stock source for %',v_code;
+  END IF;
+  -- Financial COGS must reverse the historical sale cost, not today's moving
+  -- warehouse average (which may differ months after the original sale).
+  IF v_purchased>0 AND (v_sale_p<=0 OR v_sale_p_value<=0) THEN
+    RAISE EXCEPTION 'Original purchased sale cost missing for %; audit review needed',v_code;
+  END IF;
+  v_cost:=CASE WHEN v_sale_p>0 THEN v_sale_p_value/v_sale_p ELSE 0 END;
   SELECT p.product_name,p.unit INTO v_product,v_unit FROM public.products p
   WHERE p.product_code=v_code;
-  v_cost:=coalesce(public.bb_stock_average_cost_internal(v_code),0);
 
   FOR v_part IN SELECT value FROM jsonb_array_elements(jsonb_build_array(
     jsonb_build_object('source','PURCHASED','qty',v_purchased),
@@ -207,7 +243,7 @@ BEGIN
    ) VALUES (
      v_transaction_id,CASE WHEN v_type='OPEN_BATCH' THEN v_batch_id ELSE NULL END,
      new.return_date,'Stock In',v_code,coalesce(v_product,v_code),v_source_qty,
-     coalesce(v_unit,''),v_location,v_location,v_invoice.salesperson_staff_id,
+     coalesce(v_unit,''),v_invoice.location_code,v_location,v_invoice.salesperson_staff_id,
      v_invoice.salesperson_name_snapshot,new.return_id,v_invoice.invoice_no,
      'Post-close reversal: original closed Batch '||v_invoice.batch_id||
      ' -> '||v_type||coalesce(' '||v_batch_id,'')||' ('||v_source||')',
@@ -218,7 +254,7 @@ BEGIN
      CASE WHEN v_source='PURCHASED' THEN v_cost ELSE 0 END,
      round(v_source_qty*CASE WHEN v_source='PURCHASED' THEN v_cost ELSE 0 END,6),
      coalesce((select l.location_name from public.locations l
-               where l.location_code=v_location),v_location),
+               where l.location_code=v_invoice.location_code),v_invoice.location_code),
      'POSTCLOSE-RETURN:'||new.return_id||':'||v_code||':'||v_source
    );
    INSERT INTO public.bb_postclose_reversal_allocations(
@@ -426,6 +462,27 @@ REVOKE ALL ON FUNCTION public.bb_invoice_reversal_postclose_save_v1(jsonb) FROM 
 GRANT EXECUTE ON FUNCTION public.bb_invoice_reversal_postclose_save_v1(jsonb) TO authenticated,service_role;
 REVOKE ALL ON FUNCTION public.bb_postclose_reversal_stock_v1() FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.bb_postclose_reversal_stock_v1() TO service_role;
+
+-- COGS period and monthly reports currently recognize only normal sale returns.
+-- Add POSTCLOSE_SALE_RETURN to all four existing classification/filter expressions.
+-- Preserve every other calculation in the installed, reviewed COGS function.
+DO $postclose_cogs$
+DECLARE v_cogs text;
+        v_count integer;
+        v_needle text:=quote_literal('DIRECT_SALE_RETURN');
+BEGIN
+ SELECT pg_get_functiondef('public.bb_cogs_period_rows_internal(date,date)'::regprocedure)
+ INTO v_cogs;
+ IF v_cogs IS NULL OR position(quote_literal('BATCH_SALE_RETURN') in v_cogs)=0
+ THEN RAISE EXCEPTION 'COGS integration blocked: expected existing report function missing'; END IF;
+ v_count:=(length(v_cogs)-length(replace(v_cogs,v_needle,'')))/length(v_needle);
+ IF v_count<>4 THEN
+  RAISE EXCEPTION 'COGS integration blocked: expected four sale-return classifications, got %',v_count;
+ END IF;
+ EXECUTE replace(v_cogs,v_needle,v_needle||','||chr(10)||'          '||
+   quote_literal('POSTCLOSE_SALE_RETURN'));
+END;
+$postclose_cogs$;
 
 -- Fail closed on unexpected grants.
 DO $postclose_security$
