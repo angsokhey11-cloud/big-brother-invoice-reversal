@@ -1570,7 +1570,7 @@ button:disabled{
 
 
 <script
-  src="supabase-invoice-reversal-adapter.js?v=20261021-allhistory1"
+  src="supabase-invoice-reversal-adapter.js?v=20261021-postclose-routing1"
 ></script>
 
 </head>
@@ -1840,6 +1840,10 @@ button:disabled{
 
             <th style="width:235px">
               Return Source
+            </th>
+
+            <th style="width:240px">
+              Stock Destination
             </th>
 
             <th style="width:100px">
@@ -2121,6 +2125,12 @@ button:disabled{
 
     searchTotal:
       0,
+
+    postcloseConfig:
+      null,
+
+    postcloseError:
+      '',
 
     detail:
       null,
@@ -2790,10 +2800,29 @@ button:disabled{
 
       state.detail = data;
       state.selectedInvoiceId = stableId;
+      state.postcloseConfig = null;
+      state.postcloseError = '';
+      if (clean(data.invoice?.batchId)) {
+        try {
+          const optionResult = await A.postcloseOptions(stableId);
+          if (sequence !== activeInvoiceLoad) return;
+          if (!optionResult?.success) {
+            throw new Error(optionResult?.error || 'Post-close destination lookup failed.');
+          }
+          state.postcloseConfig = optionResult;
+        } catch (lookupError) {
+          if (sequence !== activeInvoiceLoad) return;
+          state.postcloseError = lookupError?.message || 'Could not load post-close destinations.';
+        }
+      }
       renderInvoice();
       setStatus(
-        'Invoice loaded from Supabase V2. Enter the quantity you want to reverse.',
-        'success'
+        state.postcloseError
+          ? 'Invoice loaded; post-close destination lookup unavailable: ' + state.postcloseError
+          : state.postcloseConfig?.isPostClose
+            ? 'Closed original Batch detected. Choose a destination for each product, then submit ONE reversal.'
+            : 'Invoice loaded from Supabase V2. Enter the quantity you want to reverse.',
+        state.postcloseError ? 'error' : 'success'
       );
     } catch (error) {
       if (sequence !== activeInvoiceLoad) return;
@@ -3155,6 +3184,10 @@ button:disabled{
   </td>
 
 
+  <td class="source-summary">
+    ${buildPostCloseDestination(item)}
+  </td>
+
   <td class="right">
 
     <strong class="line-amount">
@@ -3171,6 +3204,68 @@ button:disabled{
   }
 
 
+
+
+  /* One destination per physical product, including products inside GROUP lines.
+   * Selections are optional independently: Warehouse defaults for each product.
+   * Server validates source products, permissions, locations and Batch status again.
+   */
+  function postcloseProducts(item) {
+    const allocations = Array.isArray(item.stockAllocation)
+      ? item.stockAllocation : [];
+    const group = clean(item.entryType).toUpperCase() === 'GROUP';
+    const values = group
+      ? allocations.map(p => clean(p.productCode))
+      : [clean(item.exactProductCode || item.productCode)];
+    return [...new Set(values.filter(Boolean))];
+  }
+
+  function buildPostCloseDestination(item) {
+    const config = state.postcloseConfig;
+    if (!config?.isPostClose) return '<span style="color:#8798aa">—</span>';
+    const products = postcloseProducts(item);
+    if (!products.length) return '<span class="line-error">Missing original product allocation</span>';
+    const batches = Array.isArray(config.openBatches) ? config.openBatches : [];
+    return '<div class="source-detail" style="font-weight:700;margin-bottom:6px">' +
+      'Original ' + esc(config.originalBatchId || '') + ' remains Closed</div>' +
+      products.map(code => {
+        const options = batches.filter(b =>
+          (Array.isArray(b.products) ? b.products : []).includes(code)
+        );
+        return '<label style="display:block;margin:7px 0">' +
+          '<span style="display:block;margin-bottom:4px;font-size:11px">' + esc(code) + '</span>' +
+          '<select class="postclose-destination" data-product-code="' + esc(code) + '"' +
+          ' style="width:100%;min-width:160px;max-width:280px;padding:6px;border:1px solid #bdcfe0;border-radius:7px">' +
+          '<option value="WAREHOUSE">🏠 Warehouse (' + esc(config.warehouseLocation) + ')</option>' +
+          options.map(b => '<option value="BATCH:' + esc(b.batchId) + '">' +
+            '🚚 ' + esc(b.batchId) + ' · ' + esc(b.salesman || '') + ' · ' +
+            esc(b.batchDate || '') + '</option>').join('') +
+          '</select></label>';
+      }).join('');
+  }
+
+  function readPostCloseDestinations(row,item) {
+    const required = postcloseProducts(item);
+    const controls = [...row.querySelectorAll('.postclose-destination')];
+    if (!required.length || controls.length !== required.length) {
+      throw new Error('The original product destinations could not be verified for ' + item.productName);
+    }
+    return controls.map(input => {
+      const productCode = clean(input.dataset.productCode);
+      if (!required.includes(productCode)) throw new Error('Invalid returned product destination.');
+      const value = clean(input.value);
+      if (value === 'WAREHOUSE') {
+        return {productCode,destinationType:'WAREHOUSE'};
+      }
+      if (!value.startsWith('BATCH:')) throw new Error('Choose a valid destination for ' + productCode);
+      const batchId = clean(value.slice(6));
+      const eligible = (state.postcloseConfig?.openBatches || []).some(b =>
+        b.batchId === batchId && Array.isArray(b.products) && b.products.includes(productCode)
+      );
+      if (!eligible) throw new Error('Selected Batch is not eligible for ' + productCode);
+      return {productCode,destinationType:'OPEN_BATCH',batchId};
+    });
+  }
 
   function buildSourceSummary(item) {
 
@@ -3194,7 +3289,9 @@ button:disabled{
 </span>
 
 <div class="source-detail">
-  Existing Batch source allocation is restored automatically.
+${state.postcloseConfig?.isPostClose
+    ? 'Post-close return: original Batch remains unchanged.'
+    : 'Existing Batch source allocation is restored automatically.'}
 </div>
 
 `;
@@ -3338,7 +3435,9 @@ ${chips}
 </span>
 
 <div class="source-detail">
-  Batch Purchased / Zero-Cost allocation is handled by the existing Batch return engine.
+${state.postcloseConfig?.isPostClose
+    ? 'Original product/source allocation stays automatic. Choose a destination per physical product.'
+    : 'Batch Purchased / Zero-Cost allocation is handled by the existing Batch return engine.'}
 </div>
 
 `;
@@ -4438,6 +4537,15 @@ ${chips}
         }
 
 
+        if (state.postcloseConfig?.isPostClose) {
+          try {
+            line.destinations = readPostCloseDestinations(row,item);
+          } catch (error) {
+            errors.push((item.productName || item.productCode) + ': ' + error.message);
+            return;
+          }
+        }
+
         result.push(
           line
         );
@@ -4574,6 +4682,21 @@ ${chips}
       state.detail.invoice;
 
 
+    if (invoice.batchId && state.postcloseError) {
+      alert('Post-close destination function unavailable: ' + state.postcloseError +
+        '\nRun Code Sync and the Local SQL migration if using Local Brain.');
+      return;
+    }
+
+    const isPostClose = state.postcloseConfig?.isPostClose === true;
+    const destinationSummary = isPostClose
+      ? lines.flatMap(line => line.destinations.map(dest =>
+          dest.productCode + ' → ' + (dest.destinationType === 'WAREHOUSE'
+          ? 'WAREHOUSE ' + state.postcloseConfig.warehouseLocation
+          : 'BATCH ' + dest.batchId)
+        )).join('\n')
+      : 'Stock will be restored to the original source.';
+
     const confirmed =
       confirm(
 
@@ -4615,7 +4738,9 @@ ${chips}
 
         +
 
-        'Stock will be restored to the original source.'
+        destinationSummary + (isPostClose
+          ? '\n\nOriginal CLOSED Batch will remain unchanged. Check stock is physically at the destination.'
+          : '')
 
       );
 
@@ -4672,10 +4797,9 @@ ${chips}
       };
 
 
-      const result =
-        await A.save(
-          payload
-        );
+      const result = isPostClose
+        ? await A.postcloseSave(payload)
+        : await A.save(payload);
 
 
       if (
@@ -4844,7 +4968,9 @@ ${chips}
 </h2>
 
 <div class="receipt-sub">
-  Invoice Reversal Receipt · Supabase V2
+  ${result.destinationMode === 'POST_CLOSE'
+    ? 'Post-Close Invoice Reversal Receipt · Product destinations in audit history'
+    : 'Invoice Reversal Receipt · Supabase V2'}
 </div>
 
 
@@ -4915,6 +5041,8 @@ ${chips}
         Stock Source
       </th>
 
+      ${result.destinationMode === 'POST_CLOSE' ? '<th>Destination</th>' : ''}
+
       <th>
         Amount
       </th>
@@ -4949,6 +5077,11 @@ ${chips}
   <td>
     ${esc(sourceLabel(row.stockAllocations))}
   </td>
+
+  ${result.destinationMode === 'POST_CLOSE'
+     ? '<td>' + esc((Array.isArray(row.destinations) ? row.destinations : []).map(d =>
+       d.productCode + ' → ' + (d.destinationType === 'WAREHOUSE' ? 'Warehouse' : 'Batch '+d.batchId)
+     ).join(' | ')) + '</td>' : ''}
 
   <td style="text-align:right">
     ${money(row.amount)}
@@ -4991,7 +5124,9 @@ ${chips}
     font-weight:700;
   "
 >
-  Stock restoration and accounting reversal were processed atomically by Supabase.
+${result.destinationMode === 'POST_CLOSE'
+  ? 'Original Closed Batch preserved; all stock destinations and invoice accounting were recorded atomically.'
+  : 'Stock restoration and accounting reversal were processed atomically by Supabase.'}
 </div>
 
 `;
@@ -5051,6 +5186,8 @@ ${chips}
 
 
     state.lineMap.clear();
+    state.postcloseConfig = null;
+    state.postcloseError = '';
 
   }
 
