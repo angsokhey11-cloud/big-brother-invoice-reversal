@@ -133,7 +133,7 @@ BEGIN
   THEN RAISE EXCEPTION 'Invalid post-close product allocation'; END IF;
   v_total:=v_total+v_qty;
 
-  SELECT count(*),max(value) INTO v_match_count,v_dest
+  SELECT count(*),(jsonb_agg(value))->0 INTO v_match_count,v_dest
   FROM jsonb_array_elements(v_route.destinations)
   WHERE trim(coalesce(value->>'productCode',''))=v_code;
   IF v_match_count<>1 THEN
