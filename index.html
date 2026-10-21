@@ -1570,7 +1570,7 @@ button:disabled{
 
 
 <script
-  src="supabase-invoice-reversal-adapter.js?v=20260924-invoiceid1"
+  src="supabase-invoice-reversal-adapter.js?v=20261021-allhistory1"
 ></script>
 
 </head>
@@ -2107,6 +2107,21 @@ button:disabled{
     recent:
       [],
 
+    searchResults:
+      [],
+
+    searchQuery:
+      '',
+
+    searchBusy:
+      false,
+
+    searchError:
+      '',
+
+    searchTotal:
+      0,
+
     detail:
       null,
 
@@ -2539,9 +2554,11 @@ button:disabled{
           [];
 
 
-      renderInvoiceDropdown(
-        invoiceNoInput.value
-      );
+      if (clean(invoiceNoInput.value)) {
+        scheduleInvoiceSearch();
+      } else {
+        renderInvoiceDropdown('');
+      }
 
 
     } catch (error) {
@@ -2571,146 +2588,112 @@ button:disabled{
 
 
 
+
+  // A/R/Sales history can contain many more invoices than the recent 50.
+  // Search the server, not the cached first page. Old invoice records stay available.
+  let searchTimer = null;
+  let searchSequence = 0;
+
+  function scheduleInvoiceSearch() {
+    clearTimeout(searchTimer);
+    const sequence = ++searchSequence;
+    const query = clean(invoiceNoInput.value);
+    state.searchQuery = query;
+    state.searchResults = [];
+    state.searchTotal = 0;
+    state.searchError = '';
+    state.searchBusy = !!query;
+
+    renderInvoiceDropdown(query);
+    if (!query) return;
+
+    searchTimer = setTimeout(async () => {
+      try {
+        const result = await A.search(query, 50);
+        if (sequence !== searchSequence
+            || clean(invoiceNoInput.value) !== query) return;
+        if (!result?.success || !Array.isArray(result.invoices)) {
+          throw new Error(result?.error || 'Invoice search returned an invalid result.');
+        }
+        state.searchResults = result.invoices;
+        state.searchTotal = Number(result.totalMatches) || result.invoices.length;
+      } catch (error) {
+        if (sequence !== searchSequence) return;
+        state.searchError = error.message || 'Invoice search failed.';
+      } finally {
+        if (sequence === searchSequence && clean(invoiceNoInput.value) === query) {
+          state.searchBusy = false;
+          renderInvoiceDropdown(query);
+        }
+      }
+    }, 280);
+  }
+
   function renderInvoiceDropdown(filter = '') {
+    const query = clean(filter);
+    let rows = [];
 
-    const query =
-      clean(
-        filter
-      )
-      .toLowerCase();
-
-
-    const rows =
-      state.recent
-        .filter(
-          invoice => {
-
-
-            const text =
-
-              [
-                invoice.invoiceNo,
-                invoice.invoiceDate,
-                invoice.customer,
-                invoice.locationCode,
-                invoice.saleMode
-              ]
-              .join(
-                ' '
-              )
-              .toLowerCase();
-
-
-            return (
-              !query
-              ||
-              text.includes(
-                query
-              )
-            );
-
-          }
-        )
-        .slice(
-          0,
-          50
-        );
-
-
-    if (!rows.length) {
-
-      invoiceDropdown.innerHTML =
-
-        '<div class="empty">'
-        +
-        'No matching Supabase invoices.'
-        +
-        '</div>';
-
-
-      return;
-
+    if (query) {
+      if (state.searchQuery !== query || state.searchBusy) {
+        invoiceDropdown.innerHTML = '<div class="empty">Searching all permitted invoices…</div>';
+        return;
+      }
+      if (state.searchError) {
+        invoiceDropdown.innerHTML =
+          '<div class="empty">Invoice search unavailable: ' + esc(state.searchError) + '</div>';
+        return;
+      }
+      rows = state.searchResults.slice(0, 50);
+    } else {
+      rows = state.recent.slice(0, 50);
     }
 
+    if (!rows.length) {
+      invoiceDropdown.innerHTML =
+        '<div class="empty">' +
+        (query ? 'No matching invoices in your assigned locations.'
+               : 'No recent invoices in your assigned locations.') +
+        '</div>';
+      return;
+    }
 
-    invoiceDropdown.innerHTML =
-
-      rows
-        .map(
-          invoice => {
-
-
-            const fully =
-              invoice.fullyReversed
-              ===
-              true;
-
-
-            return `
-
+    invoiceDropdown.innerHTML = rows.map(invoice => {
+      const fully = invoice.fullyReversed === true;
+      return `
 <button
   type="button"
   class="invoice-option ${fully ? 'full' : ''}"
   data-invoice-no="${esc(invoice.invoiceNo)}"
   data-invoice-id="${esc(invoice.invoiceId || '')}"
 >
-
   <div class="invoice-option-top">
-
-    <span class="invoice-option-no">
-      ${esc(invoice.invoiceNo)}
-    </span>
-
-    <span class="invoice-option-date">
-      ${esc(invoice.invoiceDate)}
-    </span>
-
+    <span class="invoice-option-no">${esc(invoice.invoiceNo)}</span>
+    <span class="invoice-option-date">${esc(invoice.invoiceDate)}</span>
   </div>
-
-
   <div class="invoice-option-bottom">
-
-    <span>
-      ${esc(invoice.customer || '-')}
-      ·
-      ${esc(invoice.locationCode || '-')}
-    </span>
-
-    <span>
-      ${esc(invoice.saleMode || '')}
-      ${fully ? ' · FULLY REVERSED' : ''}
-    </span>
-
+    <span>${esc(invoice.customer || '-')} · ${esc(invoice.locationCode || '-')}</span>
+    <span>${esc(invoice.saleMode || '')}${fully ? ' · FULLY REVERSED' : ''}</span>
   </div>
+</button>`;
+    }).join('');
 
-</button>
-
-`;
-
-          }
-        )
-        .join('');
-
+    if (query && state.searchTotal > rows.length) {
+      invoiceDropdown.innerHTML +=
+        '<div class="empty">Showing ' + rows.length +
+        ' of ' + state.searchTotal +
+        ' matches. Enter more details to narrow the search.</div>';
+    }
   }
-
-
 
   function openDropdown() {
-
-    renderInvoiceDropdown(
-      invoiceNoInput.value
-    );
-
-
-    invoiceDropdown
-      .classList
-      .add(
-        'open'
-      );
-
+    invoiceDropdown.classList.add('open');
+    if (clean(invoiceNoInput.value)
+        && state.searchQuery !== clean(invoiceNoInput.value)) {
+      scheduleInvoiceSearch();
+    } else {
+      renderInvoiceDropdown(invoiceNoInput.value);
+    }
   }
-
-
 
   function closeDropdown() {
 
@@ -2728,178 +2711,99 @@ button:disabled{
      LOAD DETAIL
      ========================================================== */
 
-  async function loadInvoice(
-    invoiceNo,
-    invoiceId
-  ) {
 
-    const no =
-      clean(
-        invoiceNo
-        ||
-        invoiceNoInput.value
-      );
+  let activeInvoiceLoad = 0;
 
-
+  async function loadInvoice(invoiceNo, invoiceId) {
+    const no = clean(invoiceNo || invoiceNoInput.value);
     if (!no) {
-
-      alert(
-        'Please enter an Invoice No.'
-      );
-
+      alert('Please enter an Invoice No.');
       return;
-
     }
 
-
-    let stableId =
-      clean(
-        invoiceId
-      );
-
-
-    if (!stableId) {
-
-      const exactMatches =
-        state.recent
-          .filter(
-            row =>
-              clean(
-                row.invoiceNo
-              )
-              .toLowerCase()
-              ===
-              no.toLowerCase()
-          );
-
-
-      if (exactMatches.length > 1) {
-
-        openDropdown();
-
-        setStatus(
-          'This Invoice No. is used by more than one invoice. Choose the correct Customer / Date from the list.',
-          'error'
-        );
-
-        return;
-
-      }
-
-
-      if (exactMatches.length === 1) {
-
-        stableId =
-          clean(
-            exactMatches[0].invoiceId
-          );
-
-      }
-
-    }
-
-
-    invoiceNoInput.value =
-      no;
-
-
-    state.selectedInvoiceId =
-      stableId;
-
-
-    closeDropdown();
-
-
-    loadInvoiceBtn.disabled =
-      true;
-
-
-    setStatus(
-      'Loading invoice from Supabase V2...',
-      'normal'
-    );
-
+    const sequence = ++activeInvoiceLoad;
+    let stableId = clean(invoiceId);
+    loadInvoiceBtn.disabled = true;
 
     try {
+      if (!stableId) {
+        // A typed number may refer to an invoice older than the recent-50 cache.
+        // It may also be reused by several customers. Never pick an arbitrary ID.
+        setStatus('Finding the invoice in your permitted locations…', 'normal');
+        const found = await A.search(no, 50);
+        if (sequence !== activeInvoiceLoad || clean(invoiceNoInput.value) !== no) return;
+        if (!found?.success || !Array.isArray(found.invoices)) {
+          throw new Error(found?.error || 'Invoice lookup failed.');
+        }
 
-
-      const data =
-        await A.detail(
-          no,
-          stableId
+        const exactMatches = found.invoices.filter(row =>
+          clean(row.invoiceNo).toLowerCase() === no.toLowerCase()
         );
 
-
-      if (
-        !data?.success
-      ) {
-
-        throw new Error(
-          data?.error
-          ||
-          'Invoice could not be loaded.'
-        );
-
+        if (exactMatches.length > 1
+            || (exactMatches.length === 1
+                && found.invoices.length >= 50
+                && Number(found.totalMatches) > found.invoices.length)) {
+          // Force selection by unique invoice ID. Duplicate numbers are legal.
+          state.searchQuery = no;
+          state.searchResults = found.invoices;
+          state.searchTotal = Number(found.totalMatches) || found.invoices.length;
+          state.searchError = '';
+          state.searchBusy = false;
+          renderInvoiceDropdown(no);
+          invoiceDropdown.classList.add('open');
+          setStatus(
+            'This Invoice No. may belong to multiple customers. Choose the correct Customer / Date from the list.',
+            'error'
+          );
+          return;
+        }
+        if (!exactMatches.length) {
+          state.searchQuery = no;
+          state.searchResults = found.invoices;
+          state.searchTotal = Number(found.totalMatches) || found.invoices.length;
+          state.searchError = '';
+          state.searchBusy = false;
+          renderInvoiceDropdown(no);
+          invoiceDropdown.classList.add('open');
+          throw new Error(
+            'No exact invoice was found in your permitted locations. Check the Invoice No. or choose a result.'
+          );
+        }
+        stableId = clean(exactMatches[0].invoiceId);
+        if (!stableId) throw new Error('The matching invoice has no internal Invoice ID.');
       }
 
+      invoiceNoInput.value = no;
+      state.selectedInvoiceId = stableId;
+      closeDropdown();
+      setStatus('Loading invoice from Supabase V2…', 'normal');
 
-      state.detail =
-        data;
+      const data = await A.detail(no, stableId);
+      if (sequence !== activeInvoiceLoad) return;
+      if (!data?.success) {
+        throw new Error(data?.error || 'Invoice could not be loaded.');
+      }
+      if (clean(data.invoice?.invoiceId) !== stableId) {
+        throw new Error('Invoice identity mismatch. Reopen the correct invoice.');
+      }
 
-
-      state.selectedInvoiceId =
-        clean(
-          data?.invoice?.invoiceId
-          ||
-          stableId
-        );
-
-
+      state.detail = data;
+      state.selectedInvoiceId = stableId;
       renderInvoice();
-
-
       setStatus(
-
         'Invoice loaded from Supabase V2. Enter the quantity you want to reverse.',
-
         'success'
-
       );
-
-
     } catch (error) {
-
-
-      state.detail =
-        null;
-
-      state.selectedInvoiceId =
-        '';
-
-
+      if (sequence !== activeInvoiceLoad) return;
+      state.detail = null;
+      state.selectedInvoiceId = '';
       hideInvoice();
-
-
-      setStatus(
-
-        error?.message
-        ||
-        'Invoice could not be loaded.',
-
-        'error'
-
-      );
-
-
+      setStatus(error?.message || 'Invoice could not be loaded.', 'error');
     } finally {
-
-
-      loadInvoiceBtn.disabled =
-        false;
-
-
+      if (sequence === activeInvoiceLoad) loadInvoiceBtn.disabled = false;
     }
-
   }
 
   /* ==========================================================
@@ -5213,16 +5117,9 @@ ${chips}
 
     function () {
 
-      renderInvoiceDropdown(
-        invoiceNoInput.value
-      );
+      scheduleInvoiceSearch();
 
-
-      invoiceDropdown
-        .classList
-        .add(
-          'open'
-        );
+      invoiceDropdown.classList.add('open');
 
     }
 
@@ -5273,9 +5170,7 @@ ${chips}
           )
       ) {
 
-        renderInvoiceDropdown(
-          invoiceNoInput.value
-        );
+        openDropdown();
 
       }
 
