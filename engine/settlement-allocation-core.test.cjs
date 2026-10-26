@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {allocate,salesmanCashToRemit,parseAmount}=require('./settlement-allocation-core.cjs');
+const invoice={invoiceAmount:'250.00',invoiceCurrency:'USD',mode:'CASH_BANK'};
+const source=(sourceType,sourceId,useAmount,availableAmount='100.00')=>({sourceType,sourceId,useAmount,availableAmount,currency:'USD'});
+assert.equal(allocate({...invoice,selections:[source('CUSTOMER_CREDIT','c','80'),source('BANK_REGISTER','b','50')]}).remaining,'120.00');
+assert.equal(allocate({...invoice,mode:'PARTIAL_BANK',selections:[source('BANK_REGISTER','b','30')]}).remaining,'220.00');
+assert.equal(allocate({...invoice,mode:'BANK',selections:[source('CUSTOMER_CREDIT','c','100')]}).applied,'100.00');
+assert.throws(()=>allocate({...invoice,selections:[source('BANK_REGISTER','b','50'),source('BANK_REGISTER','b','10')]}),/Duplicate/);
+assert.throws(()=>allocate({...invoice,selections:[source('BANK_REGISTER','b','101')]}),/exceeds/);
+assert.throws(()=>allocate({...invoice,selections:[source('BANK_REGISTER','b','250','300'),source('CUSTOMER_CREDIT','c','1')]}),/overallocated/);
+assert.throws(()=>parseAmount('10.005','USD'),/precision/);
+assert.equal(parseAmount('10000','KHR'),10000);
+const refund={id:'INV-7492',amount:'100',currency:'USD',status:'APPROVED',fundingSource:'SALESMAN_COLLECTION'};
+assert.equal(salesmanCashToRemit({cashCollected:'500',currency:'USD',refunds:[refund]}),'400.00');
+assert.throws(()=>salesmanCashToRemit({cashCollected:'50',currency:'USD',refunds:[refund]}),/exceeds/);
+assert.throws(()=>salesmanCashToRemit({cashCollected:'500',currency:'USD',refunds:[{...refund,fundingSource:'COMPANY_DAILY_CASH'}]}),/eligible/);
+console.log('11 tests passed');
