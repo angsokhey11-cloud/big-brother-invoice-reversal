@@ -1573,6 +1573,15 @@ button:disabled{
   src="supabase-invoice-reversal-adapter.js?v=20261031-source-preview-stage1"
 ></script>
 
+<style>
+.bb-batch-return-sources{display:grid;gap:9px;min-width:210px}
+.bb-batch-source-product{padding:7px;border:1px solid #cfdded;border-radius:8px;background:#f5f9ff}
+.bb-batch-source-product>strong{display:block;margin-bottom:3px;color:#17477b;font-size:11px}
+.bb-batch-source-product .source-detail{display:block;font-size:10px}
+.bb-batch-source-inputs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}
+.bb-batch-source-inputs label{font-size:10px;font-weight:700;display:grid;gap:4px}
+.bb-batch-source-inputs input{box-sizing:border-box;max-width:100%;min-width:75px;width:100%;padding:6px;border:1px solid #adc6df;border-radius:6px;color:#173f77;font-weight:800;text-align:center}
+</style>
 </head>
 
 
@@ -3400,6 +3409,31 @@ ${chips}
 
 
 
+  function batchSourceInputs(row,item) {
+    return state.batchSources.filter(r=>clean(r.lineId)===clean(item.lineId)).map(record=>{
+      const box=[...row.querySelectorAll('.bb-batch-source-product')].find(x=>clean(x.dataset.productCode)===clean(record.productCode));
+      return {record,box,p:box?Number(box.querySelector('.bb-batch-return-p')?.value):NaN,
+        z:box?Number(box.querySelector('.bb-batch-return-z')?.value):NaN};
+    });
+  }
+  function batchReturnValidation(row,item,qty) {
+    const entries=batchSourceInputs(row,item);
+    if(state.batchSourcesError||!entries.length)return 'Original invoice source history unavailable; audit required.';
+    let total=0;
+    for(const {record,box,p,z} of entries){
+      if(!box||record.sourceMismatch)return 'Original source history mismatch for '+record.productCode;
+      if(!Number.isFinite(p)||!Number.isFinite(z)||p<0||z<0)
+        return 'Enter valid Purchased / Zero-Cost returns for '+record.productCode;
+      if(p>num(record.remainingPurchasedQty)+EPS)
+        return record.productCode+': Purchased return exceeds original sold source.';
+      if(z>num(record.remainingZeroCostQty)+EPS)
+        return record.productCode+': Zero-Cost return exceeds original sold source.';
+      total+=p+z;
+    }
+    if(Math.abs(total-qty)>EPS)return 'Selected source returns do not total Reversal Qty.';
+    return '';
+  }
+
   function buildReturnSourceControls(item) {
 
     const mode =
@@ -3436,9 +3470,22 @@ ${chips}
 
 
     if (mode === 'BATCH') {
-      return '<span class="source-chip source-batch">ORIGINAL BATCH SOURCE</span>'+
-        '<div class="source-detail">Original Purchased/Zero-Cost quantities are shown above. '+
-        'Mixed-source partial reversals require explicit source selection before release.</div>';
+      const history=state.batchSources.filter(x=>clean(x.lineId)===clean(item.lineId));
+      if(state.batchSourcesError||!history.length||history.some(x=>x.sourceMismatch)){
+        return '<span class="line-error">Original Batch stock source cannot be verified. Manual accounting audit required.</span>';
+      }
+      return '<div class="bb-batch-return-sources">'+
+        '<div class="source-detail">Choose exact original Purchased and Zero-Cost return quantities:</div>'+
+        history.map(record=>{
+          const p=num(record.remainingPurchasedQty),z=num(record.remainingZeroCostQty);
+          return '<div class="bb-batch-source-product" data-product-code="'+esc(record.productCode)+'">'+
+            '<strong>'+esc(record.productCode)+'</strong>'+
+            '<span class="source-detail">Remaining Purchased '+fmtQty(p)+' · Zero-Cost '+fmtQty(z)+'</span>'+
+            '<div class="bb-batch-source-inputs">'+
+             '<label>Purchased Return<input class="bb-batch-return-p" type="number" min="0" max="'+p+'" step="any" value="0"></label>'+
+             '<label>Zero-Cost Return<input class="bb-batch-return-z" type="number" min="0" max="'+z+'" step="any" value="0"></label>'+
+            '</div></div>';
+        }).join('')+'</div>';
     }
 
 
