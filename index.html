@@ -3670,6 +3670,16 @@ ${chips}
 
     }
 
+    if(clean(item.saleMode).toUpperCase()==='BATCH'){
+      const q=row.querySelector('.reverse-qty');
+      if(q){
+        const entries=batchSourceInputs(row,item);
+        q.readOnly=true;
+        q.value=String(entries.reduce((t,x)=>t+((Number.isFinite(x.p)?x.p:0)+(Number.isFinite(x.z)?x.z:0)),0));
+      }
+      updateRowValidation(row);updateLineAmount(row);calculateTotal();
+      return;
+    }
 
     const reverseInput =
       row.querySelector(
@@ -3931,6 +3941,11 @@ ${chips}
 
 
 
+    if(clean(item.saleMode).toUpperCase()==='BATCH'){
+      const problem=batchReturnValidation(row,item,reverseQty);
+      if(problem){message.textContent=problem;message.classList.add('line-error');return false}
+    }
+
     if (
       isMixedDirect(
         item
@@ -4091,6 +4106,20 @@ ${chips}
 
         }
 
+
+        if(clean(item.saleMode).toUpperCase()==='BATCH'){
+          const full=returnType.value==='Full Reversal';
+          const qty=row.querySelector('.reverse-qty');
+          for(const {record,box} of batchSourceInputs(row,item)){
+            const p=box?.querySelector('.bb-batch-return-p');
+            const z=box?.querySelector('.bb-batch-return-z');
+            if(p){p.value=full?String(num(record.remainingPurchasedQty)):'0';p.disabled=full}
+            if(z){z.value=full?String(num(record.remainingZeroCostQty)):'0';z.disabled=full}
+          }
+          if(qty){qty.disabled=full;qty.readOnly=true}
+          syncRow(row,true);
+          return;
+        }
 
         const reverseInput =
           row.querySelector(
@@ -4438,6 +4467,19 @@ ${chips}
           )
           .toUpperCase();
 
+
+        if(mode==='BATCH'){
+          line.stockAllocations=batchSourceInputs(row,item).filter(x=>x.p+x.z>EPS).map(x=>({
+            productCode:clean(x.record.productCode),
+            qty:x.p+x.z,
+            purchasedQty:x.p,
+            zeroCostQty:x.z
+          }));
+          if(!line.stockAllocations.length){
+            errors.push((item.productName||item.productCode)+': choose source return quantities');
+            return;
+          }
+        }
 
         if (
           mode
@@ -5476,6 +5518,12 @@ ${result.destinationMode === 'POST_CLOSE'
 
       }
 
+
+      if(event.target.matches('.bb-batch-return-p,.bb-batch-return-z')){
+        if(returnType.value==='Full Reversal')return;
+        syncRow(row,true);
+        return;
+      }
 
       if (
         event.target.classList.contains(
