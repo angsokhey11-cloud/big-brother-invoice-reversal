@@ -1570,7 +1570,7 @@ button:disabled{
 
 
 <script
-  src="supabase-invoice-reversal-adapter.js?v=20261021-postclose-routing1"
+  src="supabase-invoice-reversal-adapter.js?v=20261031-source-preview-stage1"
 ></script>
 
 </head>
@@ -2128,6 +2128,12 @@ button:disabled{
 
     postcloseConfig:
       null,
+
+    batchSources:
+      [],
+
+    batchSourcesError:
+      '',
 
     postcloseError:
       '',
@@ -2800,9 +2806,20 @@ button:disabled{
 
       state.detail = data;
       state.selectedInvoiceId = stableId;
+      state.batchSources = [];
+      state.batchSourcesError = '';
       state.postcloseConfig = null;
       state.postcloseError = '';
       if (clean(data.invoice?.batchId)) {
+        try {
+          const sourceResult=await A.batchSources(stableId);
+          if (sequence !== activeInvoiceLoad) return;
+          if (!sourceResult?.success||!Array.isArray(sourceResult.sources))
+            throw new Error('Original Batch source details could not be verified.');
+          state.batchSources=sourceResult.sources;
+        } catch (sourceError) {
+          state.batchSourcesError=sourceError?.message||'Original stock source is unavailable.';
+        }
         try {
           const optionResult = await A.postcloseOptions(stableId);
           if (sequence !== activeInvoiceLoad) return;
@@ -3276,26 +3293,22 @@ button:disabled{
       .toUpperCase();
 
 
-    if (
-      mode
-      ===
-      'BATCH'
-    ) {
-
-      return `
-
-<span class="source-chip source-batch">
-  BATCH
-</span>
-
-<div class="source-detail">
-${state.postcloseConfig?.isPostClose
-    ? 'Post-close return: original Batch remains unchanged.'
-    : 'Existing Batch source allocation is restored automatically.'}
-</div>
-
-`;
-
+    if (mode === 'BATCH') {
+      const original=state.batchSources.filter(x=>clean(x.lineId)===clean(item.lineId));
+      if(state.batchSourcesError){
+        return '<span class="line-error">Could not verify original Batch stock source: '+esc(state.batchSourcesError)+'</span>';
+      }
+      if(!original.length){
+        return '<span class="line-error">No verified Batch stock provenance for this line. Audit review required.</span>';
+      }
+      return '<span class="source-chip source-batch">BATCH</span>'+
+        original.map(x=>'<div class="source-detail">'+esc(x.productCode)+
+          ' · Original Purchased '+fmtQty(x.originalPurchasedQty)+
+          ' · Original Zero-Cost '+fmtQty(x.originalZeroCostQty)+
+          ' · Remaining Purchased '+fmtQty(x.remainingPurchasedQty)+
+          ' · Remaining Zero-Cost '+fmtQty(x.remainingZeroCostQty)+
+          (x.sourceMismatch?' <strong class="line-error">Ledger mismatch — audit required</strong>':'')+
+          '</div>').join('');
     }
 
 
@@ -3422,26 +3435,10 @@ ${chips}
     }
 
 
-    if (
-      mode
-      ===
-      'BATCH'
-    ) {
-
-      return `
-
-<span class="source-chip source-batch">
-  AUTO BATCH RETURN
-</span>
-
-<div class="source-detail">
-${state.postcloseConfig?.isPostClose
-    ? 'Original product/source allocation stays automatic. Choose a destination per physical product.'
-    : 'Batch Purchased / Zero-Cost allocation is handled by the existing Batch return engine.'}
-</div>
-
-`;
-
+    if (mode === 'BATCH') {
+      return '<span class="source-chip source-batch">ORIGINAL BATCH SOURCE</span>'+
+        '<div class="source-detail">Original Purchased/Zero-Cost quantities are shown above. '+
+        'Mixed-source partial reversals require explicit source selection before release.</div>';
     }
 
 
