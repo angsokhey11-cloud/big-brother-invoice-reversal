@@ -471,6 +471,12 @@
 
 
 
+  async function batchSources(invoiceId) {
+    return rpc('bb_invoice_reversal_batch_source_snapshot_v2',{
+      p_invoice_id:String(invoiceId||'').trim()
+    });
+  }
+
   async function postcloseOptions(invoiceId) {
     return rpc('bb_invoice_reversal_postclose_options_v1', {
       p_invoice_id: String(invoiceId || '').trim()
@@ -715,6 +721,8 @@
     save,
 
     postcloseOptions,
+
+    batchSources,
 
     postcloseSave,
 
