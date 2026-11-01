@@ -2898,7 +2898,13 @@ button:disabled{
         for(const cl of (closeResult?.closes||[])){
           const op=document.createElement('option');
           op.value=cl.closeId;
-          op.textContent=cl.closeId+' · '+String(cl.closeDate).slice(0,10)+' · Original 
+          op.textContent=cl.closeId+' - '+String(cl.closeDate).slice(0,10)+' - Original USD '+cl.originalUSD+' - Refunded USD '+cl.alreadyDeductedUSD;
+          closeSelect.appendChild(op);
+        }
+      }catch(e){
+        closeSelect.innerHTML='<option value="">Closed collection lookup unavailable</option>';
+      }
+      document.getElementById('directRefundCurrency').value=cur;
       document.getElementById('directRefundRate').value=cur==='KHR'?'4000':'1';
       document.getElementById('directRefundBalance').textContent=
         'Reversed: '+cur+' '+status.reversedAmount+
