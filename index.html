@@ -1570,7 +1570,7 @@ button:disabled{
 
 
 <script
-  src="supabase-invoice-reversal-adapter.js?v=20261101-direct-refund1"
+  src="supabase-invoice-reversal-adapter.js?v=20261101-bank-close-refund2"
 ></script>
 
 </head>
@@ -2860,6 +2860,7 @@ button:disabled{
             <div class="field"><label>Refund Amount</label><input id="directRefundAmount" type="number" min="0" step="any" placeholder="0.00"></div>
             <div class="field"><label>Refund Currency</label><input id="directRefundCurrency" readonly></div>
             <div class="field"><label>Exchange Rate (KHR)</label><input id="directRefundRate" type="number" min="1" step="any" value="1"></div>
+            <div class="field"><label>Approved Daily Cash Collection Deduction</label><select id="directRefundClosed"><option value="">Not linked to closed collection</option></select></div>
             <div class="field" id="directRefundBankBox" style="display:none"><label>Company Bank Account</label><input id="directRefundBank" placeholder="Account used for outgoing refund"></div>
             <div class="field" id="directRefundTxBox" style="display:none"><label>Bank Transaction ID</label><input id="directRefundTx" placeholder="Unique outgoing transaction reference"></div>
           </div>
@@ -2889,6 +2890,5647 @@ button:disabled{
       if(seq!==refundViewSequence)return;
       if(!status?.success)throw Error(status?.error||'Refund status unavailable');
       const cur=status.currency||'USD';
+      const closeSelect=document.getElementById('directRefundClosed');
+      closeSelect.innerHTML='<option value="">Not linked to closed collection</option>';
+      try {
+        const closeResult=await A.closedRefundOptions(id);
+        if(seq!==refundViewSequence)return;
+        for(const cl of (closeResult?.closes||[])){
+          const op=document.createElement('option');
+          op.value=cl.closeId;
+          op.textContent=cl.closeId+' · '+String(cl.closeDate).slice(0,10)+' · Original 
+      document.getElementById('directRefundRate').value=cur==='KHR'?'4000':'1';
+      document.getElementById('directRefundBalance').textContent=
+        'Reversed: '+cur+' '+status.reversedAmount+
+        ' · Paid: '+cur+' '+status.invoicePaid+
+        ' · Already Refunded: '+cur+' '+status.refundedAmount+
+        ' · Available Direct Refund: '+cur+' '+status.remainingRefund;
+      document.getElementById('directRefundAmount').value=Number(status.remainingRefund)>0?status.remainingRefund:'';
+      document.getElementById('directRefundSubmit').disabled=!(Number(status.remainingRefund)>0);
+      msg.textContent='Cash refunds deduct Daily Cash Balance only. Bank refunds create a separate outgoing refund record. Neither enters Daily Cash Collection.';
+    }catch(e){
+      document.getElementById('directRefundSubmit').disabled=true;
+      msg.textContent='Refund status could not be loaded: '+(e?.message||e);
+    }
+  }
+  async function saveDirectRefund(){
+    const inv=state.detail?.invoice;
+    if(!inv)return;
+    const method=document.getElementById('directRefundMethod').value;
+    const amount=Number(document.getElementById('directRefundAmount').value);
+    const currency=document.getElementById('directRefundCurrency').value;
+    const rate=Number(document.getElementById('directRefundRate').value);
+    const bankAccount=document.getElementById('directRefundBank').value.trim();
+    const bankTransactionId=document.getElementById('directRefundTx').value.trim();
+    const note=document.getElementById('directRefundNote').value.trim();
+    const closedCollectionId=document.getElementById('directRefundClosed').value;
+    if(!(amount>0)){alert('Enter a positive refund amount.');return;}
+    if(currency==='KHR' && !(rate>0)){alert('Enter the KHR exchange rate.');return;}
+    if(method==='BANK' && (!bankAccount||!bankTransactionId)){alert('Bank account and unique outgoing transaction ID required.');return;}
+    if(!confirm('Record an ACTUAL '+currency+' '+amount.toFixed(2)+' '+(method==='DAILY_CASH'?'Daily Cash deduction':'outgoing Bank refund')+' for '+inv.invoiceNo+'? This will NOT enter Daily Cash Collection.'))return;
+    const button=document.getElementById('directRefundSubmit'), message=document.getElementById('directRefundMessage');
+    button.disabled=true;
+    try{
+      const result=await A.directRefund({invoiceId:inv.invoiceId,method,currency,amount,exchangeRate:rate,bankAccount,bankTransactionId,note,closedCollectionId});
+      if(!result?.success)throw Error(result?.error||'Refund not saved');
+      message.textContent='Refund '+result.refundId+' saved. Cash ledger: '+(result.cashLedgerId||'Bank refund register')+'.';
+      await refreshDirectRefund();
+    }catch(e){message.textContent='Refund failed: '+(e?.message||e);alert(message.textContent);}
+    finally{
+      const remaining=Number(document.getElementById('directRefundAmount').value||0);
+      button.disabled=!(remaining>0);
+    }
+  }
+
+  function renderInvoice() {
+
+    const invoice =
+      state.detail?.invoice
+      ||
+      {};
+
+
+    const items =
+      Array.isArray(
+        state.detail?.items
+      )
+        ?
+        state.detail.items
+        :
+        [];
+
+
+    state.lineMap.clear();
+
+
+    items.forEach(
+      item => {
+
+        state.lineMap.set(
+          String(
+            item.lineId
+          ),
+          item
+        );
+
+      }
+    );
+
+
+    invoiceCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+    productsCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+    reversalCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+
+    const mode =
+      clean(
+        invoice.saleMode
+      )
+      .toUpperCase();
+
+
+    saleModeBadge.textContent =
+      mode
+      ||
+      'DIRECT';
+
+
+    saleModeBadge.className =
+
+      'mode-chip '
+      +
+      (
+        mode === 'BATCH'
+          ?
+          'mode-batch'
+          :
+          'mode-direct'
+      );
+
+
+
+    invoiceMeta.innerHTML = `
+
+<div class="meta-box">
+
+  <span>
+    Invoice No.
+  </span>
+
+  <strong>
+    ${esc(invoice.invoiceNo)}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Invoice Date
+  </span>
+
+  <strong>
+    ${esc(invoice.invoiceDate)}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Customer
+  </span>
+
+  <strong>
+    ${esc(invoice.customer || '-')}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Location
+  </span>
+
+  <strong>
+    ${esc(invoice.locationCode || '-')}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Salesperson
+  </span>
+
+  <strong>
+    ${esc(invoice.salesperson || '-')}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Invoice Total
+  </span>
+
+  <strong>
+    ${money(invoice.grandTotal)}
+  </strong>
+
+</div>
+
+`;
+
+
+    lineCountLabel.textContent =
+
+      items.length
+      +
+      (
+        items.length === 1
+          ?
+          ' line'
+          :
+          ' lines'
+      );
+
+
+    productRows.innerHTML =
+
+      items
+        .map(
+          renderProductRow
+        )
+        .join('');
+
+
+    returnType.value =
+      'Partial Reversal';
+
+
+    reasonInput.value =
+      '';
+
+
+    noteInput.value =
+      '';
+
+
+    applyReturnType();
+
+
+    calculateTotal();
+
+  }
+
+
+
+  function renderProductRow(item) {
+
+    const available =
+      num(
+        item.availableQty
+      );
+
+
+    const sold =
+      num(
+        item.soldQty
+      );
+
+
+    const returned =
+      num(
+        item.returnedQty
+      );
+
+
+    const mode =
+      clean(
+        item.saleMode
+      )
+      .toUpperCase();
+
+
+    const sourceMode =
+      clean(
+        item.sourceMode
+      )
+      .toUpperCase();
+
+
+    const ambiguous =
+      num(
+        item.ambiguousPreviousReturnQty
+      );
+
+
+    const fullyReversed =
+      available
+      <=
+      EPS;
+
+
+    const rowClass =
+      fullyReversed
+        ?
+        'fully-reversed'
+        :
+        '';
+
+
+    const sourceHtml =
+      buildSourceSummary(
+        item
+      );
+
+
+    const returnSourceHtml =
+      buildReturnSourceControls(
+        item
+      );
+
+
+    return `
+
+<tr
+  class="${rowClass}"
+  data-line-id="${esc(item.lineId)}"
+>
+
+
+  <td>
+
+    <div class="product-name">
+      ${esc(item.productName)}
+    </div>
+
+    <div class="product-code">
+      ${esc(item.productCode)}
+      ${item.unit ? ' · ' + esc(item.unit) : ''}
+    </div>
+
+  </td>
+
+
+  <td class="center">
+    ${fmtQty(sold)}
+  </td>
+
+
+  <td class="center">
+    ${fmtQty(returned)}
+  </td>
+
+
+  <td class="center">
+    <strong>
+      ${fmtQty(available)}
+    </strong>
+  </td>
+
+
+  <td>
+    ${sourceHtml}
+  </td>
+
+
+  <td class="center">
+
+    <input
+      class="qty-input reverse-qty"
+      type="number"
+      min="0"
+      max="${available}"
+      step="any"
+      value="0"
+      ${fullyReversed || ambiguous > EPS ? 'disabled' : ''}
+    >
+
+  </td>
+
+
+  <td class="source-summary">
+
+    ${returnSourceHtml}
+
+    <div
+      class="line-message"
+    ></div>
+
+  </td>
+
+
+  <td class="source-summary">
+    ${buildPostCloseDestination(item)}
+  </td>
+
+  <td class="right">
+
+    <strong class="line-amount">
+      ${money(0)}
+    </strong>
+
+  </td>
+
+
+</tr>
+
+`;
+
+  }
+
+
+
+
+  /* One destination per physical product, including products inside GROUP lines.
+   * Selections are optional independently: Warehouse defaults for each product.
+   * Server validates source products, permissions, locations and Batch status again.
+   */
+  function postcloseProducts(item) {
+    const allocations = Array.isArray(item.stockAllocation)
+      ? item.stockAllocation : [];
+    const group = clean(item.entryType).toUpperCase() === 'GROUP';
+    const values = group
+      ? allocations.map(p => clean(p.productCode))
+      : [clean(item.exactProductCode || item.productCode)];
+    return [...new Set(values.filter(Boolean))];
+  }
+
+  function buildPostCloseDestination(item) {
+    const config = state.postcloseConfig;
+    if (!config?.isPostClose) return '<span style="color:#8798aa">—</span>';
+    const products = postcloseProducts(item);
+    if (!products.length) return '<span class="line-error">Missing original product allocation</span>';
+    const batches = Array.isArray(config.openBatches) ? config.openBatches : [];
+    return '<div class="source-detail" style="font-weight:700;margin-bottom:6px">' +
+      'Original ' + esc(config.originalBatchId || '') + ' · return to Warehouse or another Open Batch</div>' +
+      products.map(code => {
+        const options = batches.filter(b =>
+          (Array.isArray(b.products) ? b.products : []).includes(code)
+        );
+        return '<label style="display:block;margin:7px 0">' +
+          '<span style="display:block;margin-bottom:4px;font-size:11px">' + esc(code) + '</span>' +
+          '<select class="postclose-destination" data-product-code="' + esc(code) + '"' +
+          ' style="width:100%;min-width:160px;max-width:280px;padding:6px;border:1px solid #bdcfe0;border-radius:7px">' +
+          '<option value="WAREHOUSE">🏠 Warehouse (' + esc(config.warehouseLocation) + ')</option>' +
+          options.map(b => '<option value="BATCH:' + esc(b.batchId) + '">' +
+            '🚚 ' + esc(b.batchId) + ' · ' + esc(b.salesman || '') + ' · ' +
+            esc(b.batchDate || '') + '</option>').join('') +
+          '</select></label>';
+      }).join('');
+  }
+
+  function readPostCloseDestinations(row,item) {
+    const required = postcloseProducts(item);
+    const controls = [...row.querySelectorAll('.postclose-destination')];
+    if (!required.length || controls.length !== required.length) {
+      throw new Error('The original product destinations could not be verified for ' + item.productName);
+    }
+    return controls.map(input => {
+      const productCode = clean(input.dataset.productCode);
+      if (!required.includes(productCode)) throw new Error('Invalid returned product destination.');
+      const value = clean(input.value);
+      if (value === 'WAREHOUSE') {
+        return {productCode,destinationType:'WAREHOUSE'};
+      }
+      if (!value.startsWith('BATCH:')) throw new Error('Choose a valid destination for ' + productCode);
+      const batchId = clean(value.slice(6));
+      const eligible = (state.postcloseConfig?.openBatches || []).some(b =>
+        b.batchId === batchId && Array.isArray(b.products) && b.products.includes(productCode)
+      );
+      if (!eligible) throw new Error('Selected Batch is not eligible for ' + productCode);
+      return {productCode,destinationType:'OPEN_BATCH',batchId};
+    });
+  }
+
+  function buildSourceSummary(item) {
+
+    const mode =
+      clean(
+        item.saleMode
+      )
+      .toUpperCase();
+
+
+    if (
+      mode === 'BATCH' &&
+      !(num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS)
+    ) {
+
+      return `
+
+<span class="source-chip source-batch">
+  BATCH
+</span>
+
+<div class="source-detail">
+${state.postcloseConfig?.isPostClose
+    ? 'Batch return: restore each product to its selected destination.'
+    : 'Existing Batch source allocation is restored automatically.'}
+</div>
+
+`;
+
+    }
+
+
+    const purchased =
+      num(
+        item.originalPurchasedQty
+      );
+
+
+    const zero =
+      num(
+        item.originalZeroCostQty
+      );
+
+
+    const remainingP =
+      num(
+        item.remainingPurchasedQty
+      );
+
+
+    const remainingZ =
+      num(
+        item.remainingZeroCostQty
+      );
+
+
+    let chips =
+      '';
+
+
+    if (
+      purchased
+      >
+      EPS
+    ) {
+
+      chips += `
+
+<span class="source-chip source-purchased">
+  PURCHASED ${fmtQty(purchased)}
+</span>
+
+`;
+
+    }
+
+
+    if (
+      zero
+      >
+      EPS
+    ) {
+
+      chips += `
+
+<span class="source-chip source-zero">
+  ZERO-COST ${fmtQty(zero)}
+</span>
+
+`;
+
+    }
+
+
+    return `
+
+${chips}
+
+<div class="source-detail">
+
+  Remaining Purchased:
+  <strong>
+    ${fmtQty(remainingP)}
+  </strong>
+
+  ·
+
+  Remaining Zero-Cost:
+  <strong>
+    ${fmtQty(remainingZ)}
+  </strong>
+
+</div>
+
+`;
+
+  }
+
+
+
+  function buildReturnSourceControls(item) {
+
+    const mode =
+      clean(
+        item.saleMode
+      )
+      .toUpperCase();
+
+
+    const ambiguous =
+      num(
+        item.ambiguousPreviousReturnQty
+      );
+
+
+    if (
+      ambiguous
+      >
+      EPS
+    ) {
+
+      return `
+
+<div class="line-error">
+
+  Older Mixed reversal source is ambiguous.
+  Manual review required.
+
+</div>
+
+`;
+
+    }
+
+
+    if (
+      mode === 'BATCH' &&
+      !(num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS)
+    ) {
+
+      return `
+
+<span class="source-chip source-batch">
+  LEGACY BATCH RETURN
+</span>
+
+<div class="source-detail">
+${state.postcloseConfig?.isPostClose
+    ? 'Original product/source allocation stays automatic. Choose a destination per physical product.'
+    : 'Batch Purchased / Zero-Cost allocation is handled by the existing Batch return engine.'}
+</div>
+
+`;
+
+    }
+
+
+    const remainingP =
+      num(
+        item.remainingPurchasedQty
+      );
+
+
+    const remainingZ =
+      num(
+        item.remainingZeroCostQty
+      );
+
+
+    if (
+      remainingP
+      >
+      EPS
+
+      &&
+
+      remainingZ
+      >
+      EPS
+    ) {
+
+      return `
+
+<span class="source-chip source-purchased">
+  PURCHASED
+</span>
+
+<span class="source-chip source-zero">
+  ZERO-COST
+</span>
+
+
+<div class="mixed-controls">
+
+
+  <div class="mixed-control">
+
+    <label>
+      Purchased Return
+    </label>
+
+    <input
+      type="number"
+      class="source-purchased-qty"
+      min="0"
+      max="${remainingP}"
+      step="any"
+      value="0"
+    >
+
+  </div>
+
+
+  <div class="mixed-control">
+
+    <label>
+      Zero-Cost Return
+    </label>
+
+    <input
+      type="number"
+      class="source-zero-qty"
+      min="0"
+      max="${remainingZ}"
+      step="any"
+      value="0"
+    >
+
+  </div>
+
+
+</div>
+
+
+<div class="source-detail">
+  Mixed stock-source sale: source quantities control the Reverse Qty.
+</div>
+
+`;
+
+    }
+
+
+    if (
+      remainingZ
+      >
+      EPS
+    ) {
+
+      return `
+
+<span class="source-chip source-zero">
+  ZERO-COST RETURN
+</span>
+
+<div class="source-detail">
+  Reverse Qty automatically restores to WAREHOUSE_ZERO_COST.
+</div>
+
+`;
+
+    }
+
+
+    return `
+
+<span class="source-chip source-purchased">
+  PURCHASED RETURN
+</span>
+
+<div class="source-detail">
+  Reverse Qty automatically restores to WAREHOUSE_GOOD.
+</div>
+
+`;
+
+  }
+
+
+
+  /* ==========================================================
+     ROW SYNCHRONIZATION
+     ========================================================== */
+
+  function isMixedDirect(item) {
+    const mode=clean(item.saleMode).toUpperCase();
+    const eligible=mode==='DIRECT' ||
+      (mode==='BATCH' && clean(item.entryType||'EXACT').toUpperCase()==='EXACT' &&
+       num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS);
+    return eligible && num(item.remainingPurchasedQty)>EPS && num(item.remainingZeroCostQty)>EPS;
+  }
+
+
+  function syncRow(
+    row,
+    sourceChanged = false
+  ) {
+
+    const lineId =
+      row.dataset.lineId;
+
+
+    const item =
+      state.lineMap.get(
+        lineId
+      );
+
+
+    if (!item) {
+
+      return;
+
+    }
+
+
+    const reverseInput =
+      row.querySelector(
+        '.reverse-qty'
+      );
+
+
+    const purchasedInput =
+      row.querySelector(
+        '.source-purchased-qty'
+      );
+
+
+    const zeroInput =
+      row.querySelector(
+        '.source-zero-qty'
+      );
+
+
+    const full =
+      returnType.value
+      ===
+      'Full Reversal';
+
+
+    const mixed =
+      isMixedDirect(
+        item
+      );
+
+
+    if (mixed) {
+
+
+      if (
+        full
+      ) {
+
+
+        purchasedInput.value =
+          String(
+            num(
+              item.remainingPurchasedQty
+            )
+          );
+
+
+        zeroInput.value =
+          String(
+            num(
+              item.remainingZeroCostQty
+            )
+          );
+
+
+      }
+
+
+      reverseInput.readOnly =
+        true;
+
+
+      reverseInput.value =
+        String(
+
+          Math.max(
+            0,
+            num(
+              purchasedInput.value
+            )
+          )
+
+          +
+
+          Math.max(
+            0,
+            num(
+              zeroInput.value
+            )
+          )
+
+        );
+
+
+    } else {
+
+
+      reverseInput.readOnly =
+        false;
+
+
+    }
+
+
+    updateRowValidation(
+      row
+    );
+
+
+    updateLineAmount(
+      row
+    );
+
+
+    calculateTotal();
+
+  }
+
+
+
+  function updateLineAmount(row) {
+
+    const item =
+      state.lineMap.get(
+        row.dataset.lineId
+      );
+
+
+    if (!item) {
+
+      return;
+
+    }
+
+
+    const qty =
+      num(
+        row
+          .querySelector(
+            '.reverse-qty'
+          )
+          ?.value
+      );
+
+
+    const amount =
+      qty
+      *
+      num(
+        item.unitPrice
+      );
+
+
+    const cell =
+      row.querySelector(
+        '.line-amount'
+      );
+
+
+    if (cell) {
+
+      cell.textContent =
+        money(
+          amount
+        );
+
+    }
+
+  }
+
+
+
+  function updateRowValidation(row) {
+
+    const item =
+      state.lineMap.get(
+        row.dataset.lineId
+      );
+
+
+    const message =
+      row.querySelector(
+        '.line-message'
+      );
+
+
+    if (
+      !item
+      ||
+      !message
+    ) {
+
+      return true;
+
+    }
+
+
+    message.className =
+      'line-message';
+
+
+    message.textContent =
+      '';
+
+
+    const reverseQty =
+      num(
+        row
+          .querySelector(
+            '.reverse-qty'
+          )
+          ?.value
+      );
+
+
+    const available =
+      num(
+        item.availableQty
+      );
+
+
+    if (
+      reverseQty
+      <
+      -EPS
+    ) {
+
+      message.textContent =
+        'Reverse Qty cannot be negative.';
+
+
+      message.classList.add(
+        'line-error'
+      );
+
+
+      return false;
+
+    }
+
+
+    if (
+      reverseQty
+      >
+      available
+      +
+      EPS
+    ) {
+
+      message.textContent =
+
+        'Reverse Qty exceeds available '
+        +
+        fmtQty(
+          available
+        )
+        +
+        '.';
+
+
+      message.classList.add(
+        'line-error'
+      );
+
+
+      return false;
+
+    }
+
+
+
+    if (
+      isMixedDirect(
+        item
+      )
+    ) {
+
+
+      const p =
+        num(
+          row
+            .querySelector(
+              '.source-purchased-qty'
+            )
+            ?.value
+        );
+
+
+      const z =
+        num(
+          row
+            .querySelector(
+              '.source-zero-qty'
+            )
+            ?.value
+        );
+
+
+      if (
+        p
+        >
+        num(
+          item.remainingPurchasedQty
+        )
+        +
+        EPS
+      ) {
+
+        message.textContent =
+          'Purchased Return exceeds remaining Purchased Sold Qty.';
+
+
+        message.classList.add(
+          'line-error'
+        );
+
+
+        return false;
+
+      }
+
+
+      if (
+        z
+        >
+        num(
+          item.remainingZeroCostQty
+        )
+        +
+        EPS
+      ) {
+
+        message.textContent =
+          'Zero-Cost Return exceeds remaining Zero-Cost Sold Qty.';
+
+
+        message.classList.add(
+          'line-error'
+        );
+
+
+        return false;
+
+      }
+
+
+      if (
+        reverseQty
+        >
+        EPS
+
+        &&
+
+        p + z
+        <=
+        EPS
+      ) {
+
+        message.textContent =
+          'Select Purchased / Zero-Cost Return Qty.';
+
+
+        message.classList.add(
+          'line-error'
+        );
+
+
+        return false;
+
+      }
+
+
+    }
+
+
+    if (
+      reverseQty
+      >
+      EPS
+    ) {
+
+      message.textContent =
+        'Ready';
+
+
+      message.classList.add(
+        'line-ok'
+      );
+
+    }
+
+
+    return true;
+
+  }
+
+
+
+  /* ==========================================================
+     REVERSAL TYPE
+     ========================================================== */
+
+  function applyReturnType() {
+
+    const full =
+      returnType.value
+      ===
+      'Full Reversal';
+
+
+    [
+      ...productRows.querySelectorAll(
+        'tr[data-line-id]'
+      )
+    ]
+    .forEach(
+      row => {
+
+
+        const item =
+          state.lineMap.get(
+            row.dataset.lineId
+          );
+
+
+        if (!item) {
+
+          return;
+
+        }
+
+
+        const reverseInput =
+          row.querySelector(
+            '.reverse-qty'
+          );
+
+
+        const pInput =
+          row.querySelector(
+            '.source-purchased-qty'
+          );
+
+
+        const zInput =
+          row.querySelector(
+            '.source-zero-qty'
+          );
+
+
+        const available =
+          num(
+            item.availableQty
+          );
+
+
+        const ambiguous =
+          num(
+            item.ambiguousPreviousReturnQty
+          )
+          >
+          EPS;
+
+
+        if (
+          available
+          <=
+          EPS
+
+          ||
+
+          ambiguous
+        ) {
+
+          reverseInput.value =
+            '0';
+
+
+          reverseInput.disabled =
+            true;
+
+
+          if (pInput) {
+
+            pInput.disabled =
+              true;
+
+          }
+
+
+          if (zInput) {
+
+            zInput.disabled =
+              true;
+
+          }
+
+
+          updateLineAmount(
+            row
+          );
+
+
+          return;
+
+        }
+
+
+        if (full) {
+
+
+          reverseInput.value =
+            String(
+              available
+            );
+
+
+          reverseInput.disabled =
+            true;
+
+
+          if (pInput) {
+
+            pInput.value =
+              String(
+                num(
+                  item.remainingPurchasedQty
+                )
+              );
+
+
+            pInput.disabled =
+              true;
+
+          }
+
+
+          if (zInput) {
+
+            zInput.value =
+              String(
+                num(
+                  item.remainingZeroCostQty
+                )
+              );
+
+
+            zInput.disabled =
+              true;
+
+          }
+
+
+
+        } else {
+
+
+          reverseInput.value =
+            '0';
+
+
+          reverseInput.disabled =
+            false;
+
+
+          if (
+            isMixedDirect(
+              item
+            )
+          ) {
+
+            reverseInput.readOnly =
+              true;
+
+          } else {
+
+            reverseInput.readOnly =
+              false;
+
+          }
+
+
+          if (pInput) {
+
+            pInput.value =
+              '0';
+
+
+            pInput.disabled =
+              false;
+
+          }
+
+
+          if (zInput) {
+
+            zInput.value =
+              '0';
+
+
+            zInput.disabled =
+              false;
+
+          }
+
+
+        }
+
+
+        syncRow(
+          row
+        );
+
+
+      }
+    );
+
+
+    calculateTotal();
+
+  }
+
+
+
+  /* ==========================================================
+     TOTAL
+     ========================================================== */
+
+  function calculateTotal() {
+
+    let total =
+      0;
+
+
+    [
+      ...productRows.querySelectorAll(
+        'tr[data-line-id]'
+      )
+    ]
+    .forEach(
+      row => {
+
+
+        const item =
+          state.lineMap.get(
+            row.dataset.lineId
+          );
+
+
+        if (!item) {
+
+          return;
+
+        }
+
+
+        total +=
+
+          num(
+            row
+              .querySelector(
+                '.reverse-qty'
+              )
+              ?.value
+          )
+
+          *
+
+          num(
+            item.unitPrice
+          );
+
+
+      }
+    );
+
+
+    reversalTotal.textContent =
+      money(
+        total
+      );
+
+
+    return total;
+
+  }
+
+
+
+  /* ==========================================================
+     PAYLOAD
+     ========================================================== */
+
+  function collectLines() {
+
+    const result =
+      [];
+
+
+    const errors =
+      [];
+
+
+    [
+      ...productRows.querySelectorAll(
+        'tr[data-line-id]'
+      )
+    ]
+    .forEach(
+      row => {
+
+
+        const item =
+          state.lineMap.get(
+            row.dataset.lineId
+          );
+
+
+        if (!item) {
+
+          return;
+
+        }
+
+
+        const reverseQty =
+          num(
+            row
+              .querySelector(
+                '.reverse-qty'
+              )
+              ?.value
+          );
+
+
+        if (
+          reverseQty
+          <=
+          EPS
+        ) {
+
+          return;
+
+        }
+
+
+        if (
+          !updateRowValidation(
+            row
+          )
+        ) {
+
+          errors.push(
+            item.productName
+          );
+
+          return;
+
+        }
+
+
+        const line = {
+
+          lineId:
+            item.lineId,
+
+          qty:
+            reverseQty
+
+        };
+
+
+        const mode =
+          clean(
+            item.saleMode
+          )
+          .toUpperCase();
+
+
+        if (
+          mode === 'DIRECT' ||
+          (mode === 'BATCH' && num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS)
+        ) {
+
+
+          const remainingP =
+            num(
+              item.remainingPurchasedQty
+            );
+
+
+          const remainingZ =
+            num(
+              item.remainingZeroCostQty
+            );
+
+
+          if (
+            remainingP
+            >
+            EPS
+
+            &&
+
+            remainingZ
+            >
+            EPS
+          ) {
+
+
+            const p =
+              num(
+                row
+                  .querySelector(
+                    '.source-purchased-qty'
+                  )
+                  ?.value
+              );
+
+
+            const z =
+              num(
+                row
+                  .querySelector(
+                    '.source-zero-qty'
+                  )
+                  ?.value
+              );
+
+
+            line.stockAllocations =
+              [];
+
+
+            if (
+              p
+              >
+              EPS
+            ) {
+
+              line.stockAllocations.push({
+
+                source:
+                  'PURCHASED',
+
+                qty:
+                  p
+
+              });
+
+            }
+
+
+            if (
+              z
+              >
+              EPS
+            ) {
+
+              line.stockAllocations.push({
+
+                source:
+                  'ZERO_COST',
+
+                qty:
+                  z
+
+              });
+
+            }
+
+
+
+          } else if (
+            remainingZ
+            >
+            EPS
+          ) {
+
+
+            line.stockAllocations = [
+
+              {
+
+                source:
+                  'ZERO_COST',
+
+                qty:
+                  reverseQty
+
+              }
+
+            ];
+
+
+
+          } else {
+
+
+            line.stockAllocations = [
+
+              {
+
+                source:
+                  'PURCHASED',
+
+                qty:
+                  reverseQty
+
+              }
+
+            ];
+
+
+          }
+
+
+        }
+
+
+        if (state.postcloseConfig?.isPostClose) {
+          try {
+            line.destinations = readPostCloseDestinations(row,item);
+          } catch (error) {
+            errors.push((item.productName || item.productCode) + ': ' + error.message);
+            return;
+          }
+        }
+
+        result.push(
+          line
+        );
+
+
+      }
+    );
+
+
+    if (
+      errors.length
+    ) {
+
+      throw new Error(
+
+        'Please fix the Reversal Source for: '
+        +
+        errors.join(
+          ', '
+        )
+
+      );
+
+    }
+
+
+    return result;
+
+  }
+
+
+
+  /* ==========================================================
+     SAVE
+     ========================================================== */
+
+  async function executeReversal() {
+
+    if (
+      state.saving
+    ) {
+
+      return;
+
+    }
+
+
+    if (
+      !state.detail
+    ) {
+
+      alert(
+        'Please load an Invoice first.'
+      );
+
+      return;
+
+    }
+
+
+    const reason =
+      clean(
+        reasonInput.value
+      );
+
+
+    if (!reason) {
+
+      alert(
+        'Please enter a Reversal Reason.'
+      );
+
+
+      reasonInput.focus();
+
+
+      return;
+
+    }
+
+
+    if (
+      !returnDate.value
+    ) {
+
+      alert(
+        'Please select a Reversal Date.'
+      );
+
+      return;
+
+    }
+
+
+    let lines;
+
+
+    try {
+
+      lines =
+        collectLines();
+
+    } catch (error) {
+
+      alert(
+        error?.message
+        ||
+        String(error)
+      );
+
+      return;
+
+    }
+
+
+    if (
+      !lines.length
+    ) {
+
+      alert(
+        'Please enter a Reversal Qty for at least one product.'
+      );
+
+      return;
+
+    }
+
+
+    const total =
+      calculateTotal();
+
+
+    const invoice =
+      state.detail.invoice;
+
+
+    if (invoice.batchId && state.postcloseError) {
+      alert('Batch destination lookup unavailable: ' + state.postcloseError +
+        '\nPlease reload the Cloud Invoice Reversal page.');
+      return;
+    }
+
+    const isPostClose = state.postcloseConfig?.isPostClose === true;
+    const destinationSummary = isPostClose
+      ? lines.flatMap(line => line.destinations.map(dest =>
+          dest.productCode + ' → ' + (dest.destinationType === 'WAREHOUSE'
+          ? 'WAREHOUSE ' + state.postcloseConfig.warehouseLocation
+          : 'BATCH ' + dest.batchId)
+        )).join('\n')
+      : 'Stock will be restored to the original source.';
+
+    const confirmed =
+      confirm(
+
+        'Execute this Invoice Reversal?\n\n'
+
+        +
+
+        'Invoice: '
+        +
+        invoice.invoiceNo
+        +
+        '\n'
+
+        +
+
+        'Type: '
+        +
+        returnType.value
+        +
+        '\n'
+
+        +
+
+        'Product Lines: '
+        +
+        lines.length
+        +
+        '\n'
+
+        +
+
+        'Reversal Amount: '
+        +
+        money(
+          total
+        )
+        +
+        '\n\n'
+
+        +
+
+        destinationSummary + (isPostClose
+          ? '\n\nStock is restored ONLY to the selected destination. Verify the physical return.'
+          : '') +
+        (num(invoice.amountPaid)>EPS
+          ? '\n\nPAYMENT WARNING: The invoice has a recorded payment. This reversal does NOT send a cash/bank refund. Approved collection records remain historical; issue and record any actual refund separately.'
+          : '')
+
+      );
+
+
+    if (!confirmed) {
+
+      return;
+
+    }
+
+
+    state.saving =
+      true;
+
+
+    saveBtn.disabled =
+      true;
+
+
+    saveBtn.textContent =
+      '⏳ Reversing...';
+
+
+    try {
+
+
+      const payload = {
+
+        invoiceId:
+          invoice.invoiceId
+          ||
+          state.selectedInvoiceId,
+
+        invoiceNo:
+          invoice.invoiceNo,
+
+        returnDate:
+          returnDate.value,
+
+        returnType:
+          returnType.value,
+
+        reason:
+          reason,
+
+        note:
+          clean(
+            noteInput.value
+          ),
+
+        lines:
+          lines
+
+      };
+
+
+      const result = isPostClose
+        ? await A.postcloseSave(payload)
+        : await A.save(payload);
+
+
+      if (
+        !result?.success
+      ) {
+
+        throw new Error(
+          result?.error
+          ||
+          'Invoice Reversal could not be saved.'
+        );
+
+      }
+
+
+      showReceipt(
+        result
+      );
+
+
+      setStatus(
+
+        num(invoice.amountPaid)>EPS
+          ? 'Reversal saved with stock restoration. Cash/bank refund NOT issued; record any actual refund separately.'
+          : 'Reversal saved with stock restoration and historical COGS.',
+
+        'success'
+
+      );
+
+
+      await loadRecentInvoices();
+
+
+      await loadInvoice(
+        invoice.invoiceNo,
+        invoice.invoiceId
+        ||
+        state.selectedInvoiceId
+      );
+
+
+    } catch (error) {
+
+
+      console.error(
+        'Invoice Reversal V3.0 save failed:',
+        error
+      );
+
+
+      setStatus(
+
+        error?.message
+        ||
+        'Invoice Reversal could not be saved.',
+
+        'error'
+
+      );
+
+
+      alert(
+
+        'Could not complete the Invoice Reversal.\n\n'
+
+        +
+
+        (
+          error?.message
+          ||
+          String(error)
+        )
+
+      );
+
+
+    } finally {
+
+
+      state.saving =
+        false;
+
+
+      saveBtn.disabled =
+        false;
+
+
+      saveBtn.textContent =
+        '✓ Execute Reversal';
+
+
+    }
+
+  }
+
+
+
+  /* ==========================================================
+     RECEIPT
+     ========================================================== */
+
+  function sourceLabel(allocations) {
+
+    if (
+      !Array.isArray(
+        allocations
+      )
+    ) {
+
+      return 'Batch / Auto';
+
+    }
+
+
+    if (!allocations.length) {
+
+      return '-';
+
+    }
+
+
+    return allocations
+      .map(
+        item =>
+
+          clean(
+            item.source
+            ||
+            item.productCode
+          )
+
+          +
+
+          ' '
+
+          +
+
+          fmtQty(
+            item.qty
+          )
+
+      )
+      .join(
+        ' + '
+      );
+
+  }
+
+
+
+  function showReceipt(result) {
+
+    const returns =
+      Array.isArray(
+        result.returns
+      )
+        ?
+        result.returns
+        :
+        [];
+
+
+    receiptBody.innerHTML = `
+
+<h2 class="receipt-title">
+  BIG BROTHER
+</h2>
+
+<div class="receipt-sub">
+  ${result.destinationMode === 'POST_CLOSE'
+    ? 'Batch Invoice Reversal Receipt · Product destinations in audit history'
+    : 'Invoice Reversal Receipt · Supabase V2'}
+</div>
+
+
+<div class="receipt-meta">
+
+
+  <div class="receipt-box">
+
+    <span>
+      Invoice No.
+    </span>
+
+    <strong>
+      ${esc(result.invoiceNo)}
+    </strong>
+
+  </div>
+
+
+  <div class="receipt-box">
+
+    <span>
+      Reversal Date
+    </span>
+
+    <strong>
+      ${esc(returnDate.value)}
+    </strong>
+
+  </div>
+
+
+  <div class="receipt-box">
+
+    <span>
+      Reversal Type
+    </span>
+
+    <strong>
+      ${esc(returnType.value)}
+    </strong>
+
+  </div>
+
+
+</div>
+
+
+<table class="receipt-table">
+
+  <thead>
+
+    <tr>
+
+      <th>
+        Return ID
+      </th>
+
+      <th>
+        Product
+      </th>
+
+      <th>
+        Qty
+      </th>
+
+      <th>
+        Stock Source
+      </th>
+
+      ${result.destinationMode === 'POST_CLOSE' ? '<th>Destination</th>' : ''}
+
+      <th>
+        Amount
+      </th>
+
+    </tr>
+
+  </thead>
+
+
+  <tbody>
+
+    ${
+
+      returns
+        .map(
+          row => `
+
+<tr>
+
+  <td>
+    ${esc(row.returnId)}
+  </td>
+
+  <td>
+    ${esc(row.productName)}
+  </td>
+
+  <td style="text-align:center">
+    ${fmtQty(row.qty)}
+  </td>
+
+  <td>
+    ${esc(sourceLabel(row.stockAllocations))}
+  </td>
+
+  ${result.destinationMode === 'POST_CLOSE'
+     ? '<td>' + esc((Array.isArray(row.destinations) ? row.destinations : []).map(d =>
+       d.productCode + ' → ' + (d.destinationType === 'WAREHOUSE' ? 'Warehouse' : 'Batch '+d.batchId)
+     ).join(' | ')) + '</td>' : ''}
+
+  <td style="text-align:right">
+    ${money(row.amount)}
+  </td>
+
+</tr>
+
+`
+        )
+        .join('')
+
+    }
+
+  </tbody>
+
+</table>
+
+
+<div class="receipt-total">
+
+  <span>
+    Total Reversal
+  </span>
+
+  <span>
+    ${money(result.totalAmount)}
+  </span>
+
+</div>
+
+
+<div
+  style="
+    margin-top:15px;
+    padding:9px 10px;
+    border-radius:8px;
+    background:#eef8f3;
+    color:#176b4b;
+    font-size:10px;
+    font-weight:700;
+  "
+>
+${result.destinationMode === 'POST_CLOSE'
+  ? 'Original Closed Batch preserved; all stock destinations and invoice accounting were recorded atomically.'
+  : 'Stock restoration and accounting reversal were processed atomically by Supabase.'}
+</div>
+
+`;
+
+
+    receiptModal
+      .classList
+      .add(
+        'open'
+      );
+
+  }
+
+
+
+  function closeReceipt() {
+
+    receiptModal
+      .classList
+      .remove(
+        'open'
+      );
+
+  }
+
+
+
+  /* ==========================================================
+     CLEAR
+     ========================================================== */
+
+  function hideInvoice() {
+
+    invoiceCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    productsCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    reversalCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    productRows.innerHTML =
+      '';
+
+
+    state.lineMap.clear();
+    state.postcloseConfig = null;
+    state.postcloseError = '';
+
+  }
+
+
+
+  function clearAll() {
+
+    state.detail =
+      null;
+
+
+    state.selectedInvoiceId =
+      '';
+
+
+    invoiceNoInput.value =
+      '';
+
+
+    reasonInput.value =
+      '';
+
+
+    noteInput.value =
+      '';
+
+
+    returnType.value =
+      'Partial Reversal';
+
+
+    returnDate.value =
+      todayLocal();
+
+
+    reversalTotal.textContent =
+      '$0.00';
+
+
+    hideInvoice();
+
+    hideStatus();
+
+  }
+
+
+
+  /* ==========================================================
+     EVENTS
+     ========================================================== */
+
+  invoiceNoInput.addEventListener(
+
+    'focus',
+
+    openDropdown
+
+  );
+
+
+  invoiceNoInput.addEventListener(
+
+    'input',
+
+    function () {
+
+      scheduleInvoiceSearch();
+
+      invoiceDropdown.classList.add('open');
+
+    }
+
+  );
+
+
+  invoiceNoInput.addEventListener(
+
+    'keydown',
+
+    function (event) {
+
+      if (
+        event.key
+        ===
+        'Enter'
+      ) {
+
+        event.preventDefault();
+
+        loadInvoice();
+
+      }
+
+    }
+
+  );
+
+
+  invoiceDropdownBtn.addEventListener(
+
+    'click',
+
+    function () {
+
+      invoiceDropdown
+        .classList
+        .toggle(
+          'open'
+        );
+
+
+      if (
+        invoiceDropdown
+          .classList
+          .contains(
+            'open'
+          )
+      ) {
+
+        openDropdown();
+
+      }
+
+    }
+
+  );
+
+
+  invoiceDropdown.addEventListener(
+
+    'click',
+
+    function (event) {
+
+      const button =
+        event.target.closest(
+          '[data-invoice-no]'
+        );
+
+
+      if (!button) {
+
+        return;
+
+      }
+
+
+      const invoiceNo =
+        button.dataset.invoiceNo;
+
+
+      const invoiceId =
+        button.dataset.invoiceId
+        ||
+        '';
+
+
+      invoiceNoInput.value =
+        invoiceNo;
+
+
+      loadInvoice(
+        invoiceNo,
+        invoiceId
+      );
+
+    }
+
+  );
+
+
+  document.addEventListener(
+
+    'click',
+
+    function (event) {
+
+      if (
+        !document
+          .getElementById(
+            'invoicePicker'
+          )
+          .contains(
+            event.target
+          )
+      ) {
+
+        closeDropdown();
+
+      }
+
+    }
+
+  );
+
+
+  loadInvoiceBtn.addEventListener(
+    'click',
+    () => loadInvoice()
+  );
+
+
+  refreshInvoicesBtn.addEventListener(
+
+    'click',
+
+    async function () {
+
+      await loadRecentInvoices();
+
+      setStatus(
+        'Recent Supabase invoices refreshed.',
+        'success'
+      );
+
+    }
+
+  );
+
+
+  returnType.addEventListener(
+    'change',
+    applyReturnType
+  );
+
+
+  productRows.addEventListener(
+
+    'input',
+
+    function (event) {
+
+      const row =
+        event.target.closest(
+          'tr[data-line-id]'
+        );
+
+
+      if (!row) {
+
+        return;
+
+      }
+
+
+      if (
+        event.target.classList.contains(
+          'source-purchased-qty'
+        )
+
+        ||
+
+        event.target.classList.contains(
+          'source-zero-qty'
+        )
+      ) {
+
+        syncRow(
+          row,
+          true
+        );
+
+        return;
+
+      }
+
+
+      if (
+        event.target.classList.contains(
+          'reverse-qty'
+        )
+      ) {
+
+        syncRow(
+          row,
+          false
+        );
+
+      }
+
+    }
+
+  );
+
+
+  saveBtn.addEventListener(
+    'click',
+    executeReversal
+  );
+
+
+  clearBtn.addEventListener(
+    'click',
+    clearAll
+  );
+
+
+  document
+    .getElementById(
+      'receiptCloseBtn'
+    )
+    .addEventListener(
+      'click',
+      closeReceipt
+    );
+
+
+  document
+    .getElementById(
+      'receiptDoneBtn'
+    )
+    .addEventListener(
+      'click',
+      closeReceipt
+    );
+
+
+  document
+    .getElementById(
+      'receiptPrintBtn'
+    )
+    .addEventListener(
+
+      'click',
+
+      function () {
+
+        window.print();
+
+      }
+
+    );
+
+
+
+  /* ==========================================================
+     START
+     ========================================================== */
+
+  async function start() {
+
+    returnDate.value =
+      todayLocal();
+
+
+    try {
+
+
+      await A.ensureSession();
+
+
+      const profile =
+        await A.accessProfile();
+
+
+      const displayName =
+
+        profile?.staff?.staffName
+
+        ||
+
+        profile?.user?.email
+
+        ||
+
+        'Signed In';
+
+
+      userBadge.textContent =
+        'SUPABASE V2 · '
+        +
+        displayName;
+
+
+      await loadRecentInvoices();
+
+
+      const params =
+        new URLSearchParams(
+          location.search
+        );
+
+
+      const invoiceNo =
+        clean(
+          params.get(
+            'invoice'
+          )
+        );
+
+
+      if (invoiceNo) {
+
+        const invoiceId =
+          clean(
+            params.get(
+              'invoiceId'
+            )
+          );
+
+
+        invoiceNoInput.value =
+          invoiceNo;
+
+
+        await loadInvoice(
+          invoiceNo,
+          invoiceId
+        );
+
+      }
+
+
+    } catch (error) {
+
+
+      setStatus(
+
+        error?.message
+        ||
+        'Please sign in to BIG BROTHER first.',
+
+        'error'
+
+      );
+
+
+    }
+
+  }
+
+
+  start();
+
+
+})();
+
+</script>
+
+
+</body>
+
+</html>
++cl.originalUSD+' · Refunded 
+      document.getElementById('directRefundRate').value=cur==='KHR'?'4000':'1';
+      document.getElementById('directRefundBalance').textContent=
+        'Reversed: '+cur+' '+status.reversedAmount+
+        ' · Paid: '+cur+' '+status.invoicePaid+
+        ' · Already Refunded: '+cur+' '+status.refundedAmount+
+        ' · Available Direct Refund: '+cur+' '+status.remainingRefund;
+      document.getElementById('directRefundAmount').value=Number(status.remainingRefund)>0?status.remainingRefund:'';
+      document.getElementById('directRefundSubmit').disabled=!(Number(status.remainingRefund)>0);
+      msg.textContent='Cash refunds deduct Daily Cash Balance only. Bank refunds create a separate outgoing refund record. Neither enters Daily Cash Collection.';
+    }catch(e){
+      document.getElementById('directRefundSubmit').disabled=true;
+      msg.textContent='Refund status could not be loaded: '+(e?.message||e);
+    }
+  }
+  async function saveDirectRefund(){
+    const inv=state.detail?.invoice;
+    if(!inv)return;
+    const method=document.getElementById('directRefundMethod').value;
+    const amount=Number(document.getElementById('directRefundAmount').value);
+    const currency=document.getElementById('directRefundCurrency').value;
+    const rate=Number(document.getElementById('directRefundRate').value);
+    const bankAccount=document.getElementById('directRefundBank').value.trim();
+    const bankTransactionId=document.getElementById('directRefundTx').value.trim();
+    const note=document.getElementById('directRefundNote').value.trim();
+    if(!(amount>0)){alert('Enter a positive refund amount.');return;}
+    if(currency==='KHR' && !(rate>0)){alert('Enter the KHR exchange rate.');return;}
+    if(method==='BANK' && (!bankAccount||!bankTransactionId)){alert('Bank account and unique outgoing transaction ID required.');return;}
+    if(!confirm('Record an ACTUAL '+currency+' '+amount.toFixed(2)+' '+(method==='DAILY_CASH'?'Daily Cash deduction':'outgoing Bank refund')+' for '+inv.invoiceNo+'? This will NOT enter Daily Cash Collection.'))return;
+    const button=document.getElementById('directRefundSubmit'), message=document.getElementById('directRefundMessage');
+    button.disabled=true;
+    try{
+      const result=await A.directRefund({invoiceId:inv.invoiceId,method,currency,amount,exchangeRate:rate,bankAccount,bankTransactionId,note});
+      if(!result?.success)throw Error(result?.error||'Refund not saved');
+      message.textContent='Refund '+result.refundId+' saved. Cash ledger: '+(result.cashLedgerId||'Bank refund register')+'.';
+      await refreshDirectRefund();
+    }catch(e){message.textContent='Refund failed: '+(e?.message||e);alert(message.textContent);}
+    finally{
+      const remaining=Number(document.getElementById('directRefundAmount').value||0);
+      button.disabled=!(remaining>0);
+    }
+  }
+
+  function renderInvoice() {
+
+    const invoice =
+      state.detail?.invoice
+      ||
+      {};
+
+
+    const items =
+      Array.isArray(
+        state.detail?.items
+      )
+        ?
+        state.detail.items
+        :
+        [];
+
+
+    state.lineMap.clear();
+
+
+    items.forEach(
+      item => {
+
+        state.lineMap.set(
+          String(
+            item.lineId
+          ),
+          item
+        );
+
+      }
+    );
+
+
+    invoiceCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+    productsCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+    reversalCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+
+    const mode =
+      clean(
+        invoice.saleMode
+      )
+      .toUpperCase();
+
+
+    saleModeBadge.textContent =
+      mode
+      ||
+      'DIRECT';
+
+
+    saleModeBadge.className =
+
+      'mode-chip '
+      +
+      (
+        mode === 'BATCH'
+          ?
+          'mode-batch'
+          :
+          'mode-direct'
+      );
+
+
+
+    invoiceMeta.innerHTML = `
+
+<div class="meta-box">
+
+  <span>
+    Invoice No.
+  </span>
+
+  <strong>
+    ${esc(invoice.invoiceNo)}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Invoice Date
+  </span>
+
+  <strong>
+    ${esc(invoice.invoiceDate)}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Customer
+  </span>
+
+  <strong>
+    ${esc(invoice.customer || '-')}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Location
+  </span>
+
+  <strong>
+    ${esc(invoice.locationCode || '-')}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Salesperson
+  </span>
+
+  <strong>
+    ${esc(invoice.salesperson || '-')}
+  </strong>
+
+</div>
+
+
+<div class="meta-box">
+
+  <span>
+    Invoice Total
+  </span>
+
+  <strong>
+    ${money(invoice.grandTotal)}
+  </strong>
+
+</div>
+
+`;
+
+
+    lineCountLabel.textContent =
+
+      items.length
+      +
+      (
+        items.length === 1
+          ?
+          ' line'
+          :
+          ' lines'
+      );
+
+
+    productRows.innerHTML =
+
+      items
+        .map(
+          renderProductRow
+        )
+        .join('');
+
+
+    returnType.value =
+      'Partial Reversal';
+
+
+    reasonInput.value =
+      '';
+
+
+    noteInput.value =
+      '';
+
+
+    applyReturnType();
+
+
+    calculateTotal();
+
+  }
+
+
+
+  function renderProductRow(item) {
+
+    const available =
+      num(
+        item.availableQty
+      );
+
+
+    const sold =
+      num(
+        item.soldQty
+      );
+
+
+    const returned =
+      num(
+        item.returnedQty
+      );
+
+
+    const mode =
+      clean(
+        item.saleMode
+      )
+      .toUpperCase();
+
+
+    const sourceMode =
+      clean(
+        item.sourceMode
+      )
+      .toUpperCase();
+
+
+    const ambiguous =
+      num(
+        item.ambiguousPreviousReturnQty
+      );
+
+
+    const fullyReversed =
+      available
+      <=
+      EPS;
+
+
+    const rowClass =
+      fullyReversed
+        ?
+        'fully-reversed'
+        :
+        '';
+
+
+    const sourceHtml =
+      buildSourceSummary(
+        item
+      );
+
+
+    const returnSourceHtml =
+      buildReturnSourceControls(
+        item
+      );
+
+
+    return `
+
+<tr
+  class="${rowClass}"
+  data-line-id="${esc(item.lineId)}"
+>
+
+
+  <td>
+
+    <div class="product-name">
+      ${esc(item.productName)}
+    </div>
+
+    <div class="product-code">
+      ${esc(item.productCode)}
+      ${item.unit ? ' · ' + esc(item.unit) : ''}
+    </div>
+
+  </td>
+
+
+  <td class="center">
+    ${fmtQty(sold)}
+  </td>
+
+
+  <td class="center">
+    ${fmtQty(returned)}
+  </td>
+
+
+  <td class="center">
+    <strong>
+      ${fmtQty(available)}
+    </strong>
+  </td>
+
+
+  <td>
+    ${sourceHtml}
+  </td>
+
+
+  <td class="center">
+
+    <input
+      class="qty-input reverse-qty"
+      type="number"
+      min="0"
+      max="${available}"
+      step="any"
+      value="0"
+      ${fullyReversed || ambiguous > EPS ? 'disabled' : ''}
+    >
+
+  </td>
+
+
+  <td class="source-summary">
+
+    ${returnSourceHtml}
+
+    <div
+      class="line-message"
+    ></div>
+
+  </td>
+
+
+  <td class="source-summary">
+    ${buildPostCloseDestination(item)}
+  </td>
+
+  <td class="right">
+
+    <strong class="line-amount">
+      ${money(0)}
+    </strong>
+
+  </td>
+
+
+</tr>
+
+`;
+
+  }
+
+
+
+
+  /* One destination per physical product, including products inside GROUP lines.
+   * Selections are optional independently: Warehouse defaults for each product.
+   * Server validates source products, permissions, locations and Batch status again.
+   */
+  function postcloseProducts(item) {
+    const allocations = Array.isArray(item.stockAllocation)
+      ? item.stockAllocation : [];
+    const group = clean(item.entryType).toUpperCase() === 'GROUP';
+    const values = group
+      ? allocations.map(p => clean(p.productCode))
+      : [clean(item.exactProductCode || item.productCode)];
+    return [...new Set(values.filter(Boolean))];
+  }
+
+  function buildPostCloseDestination(item) {
+    const config = state.postcloseConfig;
+    if (!config?.isPostClose) return '<span style="color:#8798aa">—</span>';
+    const products = postcloseProducts(item);
+    if (!products.length) return '<span class="line-error">Missing original product allocation</span>';
+    const batches = Array.isArray(config.openBatches) ? config.openBatches : [];
+    return '<div class="source-detail" style="font-weight:700;margin-bottom:6px">' +
+      'Original ' + esc(config.originalBatchId || '') + ' · return to Warehouse or another Open Batch</div>' +
+      products.map(code => {
+        const options = batches.filter(b =>
+          (Array.isArray(b.products) ? b.products : []).includes(code)
+        );
+        return '<label style="display:block;margin:7px 0">' +
+          '<span style="display:block;margin-bottom:4px;font-size:11px">' + esc(code) + '</span>' +
+          '<select class="postclose-destination" data-product-code="' + esc(code) + '"' +
+          ' style="width:100%;min-width:160px;max-width:280px;padding:6px;border:1px solid #bdcfe0;border-radius:7px">' +
+          '<option value="WAREHOUSE">🏠 Warehouse (' + esc(config.warehouseLocation) + ')</option>' +
+          options.map(b => '<option value="BATCH:' + esc(b.batchId) + '">' +
+            '🚚 ' + esc(b.batchId) + ' · ' + esc(b.salesman || '') + ' · ' +
+            esc(b.batchDate || '') + '</option>').join('') +
+          '</select></label>';
+      }).join('');
+  }
+
+  function readPostCloseDestinations(row,item) {
+    const required = postcloseProducts(item);
+    const controls = [...row.querySelectorAll('.postclose-destination')];
+    if (!required.length || controls.length !== required.length) {
+      throw new Error('The original product destinations could not be verified for ' + item.productName);
+    }
+    return controls.map(input => {
+      const productCode = clean(input.dataset.productCode);
+      if (!required.includes(productCode)) throw new Error('Invalid returned product destination.');
+      const value = clean(input.value);
+      if (value === 'WAREHOUSE') {
+        return {productCode,destinationType:'WAREHOUSE'};
+      }
+      if (!value.startsWith('BATCH:')) throw new Error('Choose a valid destination for ' + productCode);
+      const batchId = clean(value.slice(6));
+      const eligible = (state.postcloseConfig?.openBatches || []).some(b =>
+        b.batchId === batchId && Array.isArray(b.products) && b.products.includes(productCode)
+      );
+      if (!eligible) throw new Error('Selected Batch is not eligible for ' + productCode);
+      return {productCode,destinationType:'OPEN_BATCH',batchId};
+    });
+  }
+
+  function buildSourceSummary(item) {
+
+    const mode =
+      clean(
+        item.saleMode
+      )
+      .toUpperCase();
+
+
+    if (
+      mode === 'BATCH' &&
+      !(num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS)
+    ) {
+
+      return `
+
+<span class="source-chip source-batch">
+  BATCH
+</span>
+
+<div class="source-detail">
+${state.postcloseConfig?.isPostClose
+    ? 'Batch return: restore each product to its selected destination.'
+    : 'Existing Batch source allocation is restored automatically.'}
+</div>
+
+`;
+
+    }
+
+
+    const purchased =
+      num(
+        item.originalPurchasedQty
+      );
+
+
+    const zero =
+      num(
+        item.originalZeroCostQty
+      );
+
+
+    const remainingP =
+      num(
+        item.remainingPurchasedQty
+      );
+
+
+    const remainingZ =
+      num(
+        item.remainingZeroCostQty
+      );
+
+
+    let chips =
+      '';
+
+
+    if (
+      purchased
+      >
+      EPS
+    ) {
+
+      chips += `
+
+<span class="source-chip source-purchased">
+  PURCHASED ${fmtQty(purchased)}
+</span>
+
+`;
+
+    }
+
+
+    if (
+      zero
+      >
+      EPS
+    ) {
+
+      chips += `
+
+<span class="source-chip source-zero">
+  ZERO-COST ${fmtQty(zero)}
+</span>
+
+`;
+
+    }
+
+
+    return `
+
+${chips}
+
+<div class="source-detail">
+
+  Remaining Purchased:
+  <strong>
+    ${fmtQty(remainingP)}
+  </strong>
+
+  ·
+
+  Remaining Zero-Cost:
+  <strong>
+    ${fmtQty(remainingZ)}
+  </strong>
+
+</div>
+
+`;
+
+  }
+
+
+
+  function buildReturnSourceControls(item) {
+
+    const mode =
+      clean(
+        item.saleMode
+      )
+      .toUpperCase();
+
+
+    const ambiguous =
+      num(
+        item.ambiguousPreviousReturnQty
+      );
+
+
+    if (
+      ambiguous
+      >
+      EPS
+    ) {
+
+      return `
+
+<div class="line-error">
+
+  Older Mixed reversal source is ambiguous.
+  Manual review required.
+
+</div>
+
+`;
+
+    }
+
+
+    if (
+      mode === 'BATCH' &&
+      !(num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS)
+    ) {
+
+      return `
+
+<span class="source-chip source-batch">
+  LEGACY BATCH RETURN
+</span>
+
+<div class="source-detail">
+${state.postcloseConfig?.isPostClose
+    ? 'Original product/source allocation stays automatic. Choose a destination per physical product.'
+    : 'Batch Purchased / Zero-Cost allocation is handled by the existing Batch return engine.'}
+</div>
+
+`;
+
+    }
+
+
+    const remainingP =
+      num(
+        item.remainingPurchasedQty
+      );
+
+
+    const remainingZ =
+      num(
+        item.remainingZeroCostQty
+      );
+
+
+    if (
+      remainingP
+      >
+      EPS
+
+      &&
+
+      remainingZ
+      >
+      EPS
+    ) {
+
+      return `
+
+<span class="source-chip source-purchased">
+  PURCHASED
+</span>
+
+<span class="source-chip source-zero">
+  ZERO-COST
+</span>
+
+
+<div class="mixed-controls">
+
+
+  <div class="mixed-control">
+
+    <label>
+      Purchased Return
+    </label>
+
+    <input
+      type="number"
+      class="source-purchased-qty"
+      min="0"
+      max="${remainingP}"
+      step="any"
+      value="0"
+    >
+
+  </div>
+
+
+  <div class="mixed-control">
+
+    <label>
+      Zero-Cost Return
+    </label>
+
+    <input
+      type="number"
+      class="source-zero-qty"
+      min="0"
+      max="${remainingZ}"
+      step="any"
+      value="0"
+    >
+
+  </div>
+
+
+</div>
+
+
+<div class="source-detail">
+  Mixed stock-source sale: source quantities control the Reverse Qty.
+</div>
+
+`;
+
+    }
+
+
+    if (
+      remainingZ
+      >
+      EPS
+    ) {
+
+      return `
+
+<span class="source-chip source-zero">
+  ZERO-COST RETURN
+</span>
+
+<div class="source-detail">
+  Reverse Qty automatically restores to WAREHOUSE_ZERO_COST.
+</div>
+
+`;
+
+    }
+
+
+    return `
+
+<span class="source-chip source-purchased">
+  PURCHASED RETURN
+</span>
+
+<div class="source-detail">
+  Reverse Qty automatically restores to WAREHOUSE_GOOD.
+</div>
+
+`;
+
+  }
+
+
+
+  /* ==========================================================
+     ROW SYNCHRONIZATION
+     ========================================================== */
+
+  function isMixedDirect(item) {
+    const mode=clean(item.saleMode).toUpperCase();
+    const eligible=mode==='DIRECT' ||
+      (mode==='BATCH' && clean(item.entryType||'EXACT').toUpperCase()==='EXACT' &&
+       num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS);
+    return eligible && num(item.remainingPurchasedQty)>EPS && num(item.remainingZeroCostQty)>EPS;
+  }
+
+
+  function syncRow(
+    row,
+    sourceChanged = false
+  ) {
+
+    const lineId =
+      row.dataset.lineId;
+
+
+    const item =
+      state.lineMap.get(
+        lineId
+      );
+
+
+    if (!item) {
+
+      return;
+
+    }
+
+
+    const reverseInput =
+      row.querySelector(
+        '.reverse-qty'
+      );
+
+
+    const purchasedInput =
+      row.querySelector(
+        '.source-purchased-qty'
+      );
+
+
+    const zeroInput =
+      row.querySelector(
+        '.source-zero-qty'
+      );
+
+
+    const full =
+      returnType.value
+      ===
+      'Full Reversal';
+
+
+    const mixed =
+      isMixedDirect(
+        item
+      );
+
+
+    if (mixed) {
+
+
+      if (
+        full
+      ) {
+
+
+        purchasedInput.value =
+          String(
+            num(
+              item.remainingPurchasedQty
+            )
+          );
+
+
+        zeroInput.value =
+          String(
+            num(
+              item.remainingZeroCostQty
+            )
+          );
+
+
+      }
+
+
+      reverseInput.readOnly =
+        true;
+
+
+      reverseInput.value =
+        String(
+
+          Math.max(
+            0,
+            num(
+              purchasedInput.value
+            )
+          )
+
+          +
+
+          Math.max(
+            0,
+            num(
+              zeroInput.value
+            )
+          )
+
+        );
+
+
+    } else {
+
+
+      reverseInput.readOnly =
+        false;
+
+
+    }
+
+
+    updateRowValidation(
+      row
+    );
+
+
+    updateLineAmount(
+      row
+    );
+
+
+    calculateTotal();
+
+  }
+
+
+
+  function updateLineAmount(row) {
+
+    const item =
+      state.lineMap.get(
+        row.dataset.lineId
+      );
+
+
+    if (!item) {
+
+      return;
+
+    }
+
+
+    const qty =
+      num(
+        row
+          .querySelector(
+            '.reverse-qty'
+          )
+          ?.value
+      );
+
+
+    const amount =
+      qty
+      *
+      num(
+        item.unitPrice
+      );
+
+
+    const cell =
+      row.querySelector(
+        '.line-amount'
+      );
+
+
+    if (cell) {
+
+      cell.textContent =
+        money(
+          amount
+        );
+
+    }
+
+  }
+
+
+
+  function updateRowValidation(row) {
+
+    const item =
+      state.lineMap.get(
+        row.dataset.lineId
+      );
+
+
+    const message =
+      row.querySelector(
+        '.line-message'
+      );
+
+
+    if (
+      !item
+      ||
+      !message
+    ) {
+
+      return true;
+
+    }
+
+
+    message.className =
+      'line-message';
+
+
+    message.textContent =
+      '';
+
+
+    const reverseQty =
+      num(
+        row
+          .querySelector(
+            '.reverse-qty'
+          )
+          ?.value
+      );
+
+
+    const available =
+      num(
+        item.availableQty
+      );
+
+
+    if (
+      reverseQty
+      <
+      -EPS
+    ) {
+
+      message.textContent =
+        'Reverse Qty cannot be negative.';
+
+
+      message.classList.add(
+        'line-error'
+      );
+
+
+      return false;
+
+    }
+
+
+    if (
+      reverseQty
+      >
+      available
+      +
+      EPS
+    ) {
+
+      message.textContent =
+
+        'Reverse Qty exceeds available '
+        +
+        fmtQty(
+          available
+        )
+        +
+        '.';
+
+
+      message.classList.add(
+        'line-error'
+      );
+
+
+      return false;
+
+    }
+
+
+
+    if (
+      isMixedDirect(
+        item
+      )
+    ) {
+
+
+      const p =
+        num(
+          row
+            .querySelector(
+              '.source-purchased-qty'
+            )
+            ?.value
+        );
+
+
+      const z =
+        num(
+          row
+            .querySelector(
+              '.source-zero-qty'
+            )
+            ?.value
+        );
+
+
+      if (
+        p
+        >
+        num(
+          item.remainingPurchasedQty
+        )
+        +
+        EPS
+      ) {
+
+        message.textContent =
+          'Purchased Return exceeds remaining Purchased Sold Qty.';
+
+
+        message.classList.add(
+          'line-error'
+        );
+
+
+        return false;
+
+      }
+
+
+      if (
+        z
+        >
+        num(
+          item.remainingZeroCostQty
+        )
+        +
+        EPS
+      ) {
+
+        message.textContent =
+          'Zero-Cost Return exceeds remaining Zero-Cost Sold Qty.';
+
+
+        message.classList.add(
+          'line-error'
+        );
+
+
+        return false;
+
+      }
+
+
+      if (
+        reverseQty
+        >
+        EPS
+
+        &&
+
+        p + z
+        <=
+        EPS
+      ) {
+
+        message.textContent =
+          'Select Purchased / Zero-Cost Return Qty.';
+
+
+        message.classList.add(
+          'line-error'
+        );
+
+
+        return false;
+
+      }
+
+
+    }
+
+
+    if (
+      reverseQty
+      >
+      EPS
+    ) {
+
+      message.textContent =
+        'Ready';
+
+
+      message.classList.add(
+        'line-ok'
+      );
+
+    }
+
+
+    return true;
+
+  }
+
+
+
+  /* ==========================================================
+     REVERSAL TYPE
+     ========================================================== */
+
+  function applyReturnType() {
+
+    const full =
+      returnType.value
+      ===
+      'Full Reversal';
+
+
+    [
+      ...productRows.querySelectorAll(
+        'tr[data-line-id]'
+      )
+    ]
+    .forEach(
+      row => {
+
+
+        const item =
+          state.lineMap.get(
+            row.dataset.lineId
+          );
+
+
+        if (!item) {
+
+          return;
+
+        }
+
+
+        const reverseInput =
+          row.querySelector(
+            '.reverse-qty'
+          );
+
+
+        const pInput =
+          row.querySelector(
+            '.source-purchased-qty'
+          );
+
+
+        const zInput =
+          row.querySelector(
+            '.source-zero-qty'
+          );
+
+
+        const available =
+          num(
+            item.availableQty
+          );
+
+
+        const ambiguous =
+          num(
+            item.ambiguousPreviousReturnQty
+          )
+          >
+          EPS;
+
+
+        if (
+          available
+          <=
+          EPS
+
+          ||
+
+          ambiguous
+        ) {
+
+          reverseInput.value =
+            '0';
+
+
+          reverseInput.disabled =
+            true;
+
+
+          if (pInput) {
+
+            pInput.disabled =
+              true;
+
+          }
+
+
+          if (zInput) {
+
+            zInput.disabled =
+              true;
+
+          }
+
+
+          updateLineAmount(
+            row
+          );
+
+
+          return;
+
+        }
+
+
+        if (full) {
+
+
+          reverseInput.value =
+            String(
+              available
+            );
+
+
+          reverseInput.disabled =
+            true;
+
+
+          if (pInput) {
+
+            pInput.value =
+              String(
+                num(
+                  item.remainingPurchasedQty
+                )
+              );
+
+
+            pInput.disabled =
+              true;
+
+          }
+
+
+          if (zInput) {
+
+            zInput.value =
+              String(
+                num(
+                  item.remainingZeroCostQty
+                )
+              );
+
+
+            zInput.disabled =
+              true;
+
+          }
+
+
+
+        } else {
+
+
+          reverseInput.value =
+            '0';
+
+
+          reverseInput.disabled =
+            false;
+
+
+          if (
+            isMixedDirect(
+              item
+            )
+          ) {
+
+            reverseInput.readOnly =
+              true;
+
+          } else {
+
+            reverseInput.readOnly =
+              false;
+
+          }
+
+
+          if (pInput) {
+
+            pInput.value =
+              '0';
+
+
+            pInput.disabled =
+              false;
+
+          }
+
+
+          if (zInput) {
+
+            zInput.value =
+              '0';
+
+
+            zInput.disabled =
+              false;
+
+          }
+
+
+        }
+
+
+        syncRow(
+          row
+        );
+
+
+      }
+    );
+
+
+    calculateTotal();
+
+  }
+
+
+
+  /* ==========================================================
+     TOTAL
+     ========================================================== */
+
+  function calculateTotal() {
+
+    let total =
+      0;
+
+
+    [
+      ...productRows.querySelectorAll(
+        'tr[data-line-id]'
+      )
+    ]
+    .forEach(
+      row => {
+
+
+        const item =
+          state.lineMap.get(
+            row.dataset.lineId
+          );
+
+
+        if (!item) {
+
+          return;
+
+        }
+
+
+        total +=
+
+          num(
+            row
+              .querySelector(
+                '.reverse-qty'
+              )
+              ?.value
+          )
+
+          *
+
+          num(
+            item.unitPrice
+          );
+
+
+      }
+    );
+
+
+    reversalTotal.textContent =
+      money(
+        total
+      );
+
+
+    return total;
+
+  }
+
+
+
+  /* ==========================================================
+     PAYLOAD
+     ========================================================== */
+
+  function collectLines() {
+
+    const result =
+      [];
+
+
+    const errors =
+      [];
+
+
+    [
+      ...productRows.querySelectorAll(
+        'tr[data-line-id]'
+      )
+    ]
+    .forEach(
+      row => {
+
+
+        const item =
+          state.lineMap.get(
+            row.dataset.lineId
+          );
+
+
+        if (!item) {
+
+          return;
+
+        }
+
+
+        const reverseQty =
+          num(
+            row
+              .querySelector(
+                '.reverse-qty'
+              )
+              ?.value
+          );
+
+
+        if (
+          reverseQty
+          <=
+          EPS
+        ) {
+
+          return;
+
+        }
+
+
+        if (
+          !updateRowValidation(
+            row
+          )
+        ) {
+
+          errors.push(
+            item.productName
+          );
+
+          return;
+
+        }
+
+
+        const line = {
+
+          lineId:
+            item.lineId,
+
+          qty:
+            reverseQty
+
+        };
+
+
+        const mode =
+          clean(
+            item.saleMode
+          )
+          .toUpperCase();
+
+
+        if (
+          mode === 'DIRECT' ||
+          (mode === 'BATCH' && num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS)
+        ) {
+
+
+          const remainingP =
+            num(
+              item.remainingPurchasedQty
+            );
+
+
+          const remainingZ =
+            num(
+              item.remainingZeroCostQty
+            );
+
+
+          if (
+            remainingP
+            >
+            EPS
+
+            &&
+
+            remainingZ
+            >
+            EPS
+          ) {
+
+
+            const p =
+              num(
+                row
+                  .querySelector(
+                    '.source-purchased-qty'
+                  )
+                  ?.value
+              );
+
+
+            const z =
+              num(
+                row
+                  .querySelector(
+                    '.source-zero-qty'
+                  )
+                  ?.value
+              );
+
+
+            line.stockAllocations =
+              [];
+
+
+            if (
+              p
+              >
+              EPS
+            ) {
+
+              line.stockAllocations.push({
+
+                source:
+                  'PURCHASED',
+
+                qty:
+                  p
+
+              });
+
+            }
+
+
+            if (
+              z
+              >
+              EPS
+            ) {
+
+              line.stockAllocations.push({
+
+                source:
+                  'ZERO_COST',
+
+                qty:
+                  z
+
+              });
+
+            }
+
+
+
+          } else if (
+            remainingZ
+            >
+            EPS
+          ) {
+
+
+            line.stockAllocations = [
+
+              {
+
+                source:
+                  'ZERO_COST',
+
+                qty:
+                  reverseQty
+
+              }
+
+            ];
+
+
+
+          } else {
+
+
+            line.stockAllocations = [
+
+              {
+
+                source:
+                  'PURCHASED',
+
+                qty:
+                  reverseQty
+
+              }
+
+            ];
+
+
+          }
+
+
+        }
+
+
+        if (state.postcloseConfig?.isPostClose) {
+          try {
+            line.destinations = readPostCloseDestinations(row,item);
+          } catch (error) {
+            errors.push((item.productName || item.productCode) + ': ' + error.message);
+            return;
+          }
+        }
+
+        result.push(
+          line
+        );
+
+
+      }
+    );
+
+
+    if (
+      errors.length
+    ) {
+
+      throw new Error(
+
+        'Please fix the Reversal Source for: '
+        +
+        errors.join(
+          ', '
+        )
+
+      );
+
+    }
+
+
+    return result;
+
+  }
+
+
+
+  /* ==========================================================
+     SAVE
+     ========================================================== */
+
+  async function executeReversal() {
+
+    if (
+      state.saving
+    ) {
+
+      return;
+
+    }
+
+
+    if (
+      !state.detail
+    ) {
+
+      alert(
+        'Please load an Invoice first.'
+      );
+
+      return;
+
+    }
+
+
+    const reason =
+      clean(
+        reasonInput.value
+      );
+
+
+    if (!reason) {
+
+      alert(
+        'Please enter a Reversal Reason.'
+      );
+
+
+      reasonInput.focus();
+
+
+      return;
+
+    }
+
+
+    if (
+      !returnDate.value
+    ) {
+
+      alert(
+        'Please select a Reversal Date.'
+      );
+
+      return;
+
+    }
+
+
+    let lines;
+
+
+    try {
+
+      lines =
+        collectLines();
+
+    } catch (error) {
+
+      alert(
+        error?.message
+        ||
+        String(error)
+      );
+
+      return;
+
+    }
+
+
+    if (
+      !lines.length
+    ) {
+
+      alert(
+        'Please enter a Reversal Qty for at least one product.'
+      );
+
+      return;
+
+    }
+
+
+    const total =
+      calculateTotal();
+
+
+    const invoice =
+      state.detail.invoice;
+
+
+    if (invoice.batchId && state.postcloseError) {
+      alert('Batch destination lookup unavailable: ' + state.postcloseError +
+        '\nPlease reload the Cloud Invoice Reversal page.');
+      return;
+    }
+
+    const isPostClose = state.postcloseConfig?.isPostClose === true;
+    const destinationSummary = isPostClose
+      ? lines.flatMap(line => line.destinations.map(dest =>
+          dest.productCode + ' → ' + (dest.destinationType === 'WAREHOUSE'
+          ? 'WAREHOUSE ' + state.postcloseConfig.warehouseLocation
+          : 'BATCH ' + dest.batchId)
+        )).join('\n')
+      : 'Stock will be restored to the original source.';
+
+    const confirmed =
+      confirm(
+
+        'Execute this Invoice Reversal?\n\n'
+
+        +
+
+        'Invoice: '
+        +
+        invoice.invoiceNo
+        +
+        '\n'
+
+        +
+
+        'Type: '
+        +
+        returnType.value
+        +
+        '\n'
+
+        +
+
+        'Product Lines: '
+        +
+        lines.length
+        +
+        '\n'
+
+        +
+
+        'Reversal Amount: '
+        +
+        money(
+          total
+        )
+        +
+        '\n\n'
+
+        +
+
+        destinationSummary + (isPostClose
+          ? '\n\nStock is restored ONLY to the selected destination. Verify the physical return.'
+          : '') +
+        (num(invoice.amountPaid)>EPS
+          ? '\n\nPAYMENT WARNING: The invoice has a recorded payment. This reversal does NOT send a cash/bank refund. Approved collection records remain historical; issue and record any actual refund separately.'
+          : '')
+
+      );
+
+
+    if (!confirmed) {
+
+      return;
+
+    }
+
+
+    state.saving =
+      true;
+
+
+    saveBtn.disabled =
+      true;
+
+
+    saveBtn.textContent =
+      '⏳ Reversing...';
+
+
+    try {
+
+
+      const payload = {
+
+        invoiceId:
+          invoice.invoiceId
+          ||
+          state.selectedInvoiceId,
+
+        invoiceNo:
+          invoice.invoiceNo,
+
+        returnDate:
+          returnDate.value,
+
+        returnType:
+          returnType.value,
+
+        reason:
+          reason,
+
+        note:
+          clean(
+            noteInput.value
+          ),
+
+        lines:
+          lines
+
+      };
+
+
+      const result = isPostClose
+        ? await A.postcloseSave(payload)
+        : await A.save(payload);
+
+
+      if (
+        !result?.success
+      ) {
+
+        throw new Error(
+          result?.error
+          ||
+          'Invoice Reversal could not be saved.'
+        );
+
+      }
+
+
+      showReceipt(
+        result
+      );
+
+
+      setStatus(
+
+        num(invoice.amountPaid)>EPS
+          ? 'Reversal saved with stock restoration. Cash/bank refund NOT issued; record any actual refund separately.'
+          : 'Reversal saved with stock restoration and historical COGS.',
+
+        'success'
+
+      );
+
+
+      await loadRecentInvoices();
+
+
+      await loadInvoice(
+        invoice.invoiceNo,
+        invoice.invoiceId
+        ||
+        state.selectedInvoiceId
+      );
+
+
+    } catch (error) {
+
+
+      console.error(
+        'Invoice Reversal V3.0 save failed:',
+        error
+      );
+
+
+      setStatus(
+
+        error?.message
+        ||
+        'Invoice Reversal could not be saved.',
+
+        'error'
+
+      );
+
+
+      alert(
+
+        'Could not complete the Invoice Reversal.\n\n'
+
+        +
+
+        (
+          error?.message
+          ||
+          String(error)
+        )
+
+      );
+
+
+    } finally {
+
+
+      state.saving =
+        false;
+
+
+      saveBtn.disabled =
+        false;
+
+
+      saveBtn.textContent =
+        '✓ Execute Reversal';
+
+
+    }
+
+  }
+
+
+
+  /* ==========================================================
+     RECEIPT
+     ========================================================== */
+
+  function sourceLabel(allocations) {
+
+    if (
+      !Array.isArray(
+        allocations
+      )
+    ) {
+
+      return 'Batch / Auto';
+
+    }
+
+
+    if (!allocations.length) {
+
+      return '-';
+
+    }
+
+
+    return allocations
+      .map(
+        item =>
+
+          clean(
+            item.source
+            ||
+            item.productCode
+          )
+
+          +
+
+          ' '
+
+          +
+
+          fmtQty(
+            item.qty
+          )
+
+      )
+      .join(
+        ' + '
+      );
+
+  }
+
+
+
+  function showReceipt(result) {
+
+    const returns =
+      Array.isArray(
+        result.returns
+      )
+        ?
+        result.returns
+        :
+        [];
+
+
+    receiptBody.innerHTML = `
+
+<h2 class="receipt-title">
+  BIG BROTHER
+</h2>
+
+<div class="receipt-sub">
+  ${result.destinationMode === 'POST_CLOSE'
+    ? 'Batch Invoice Reversal Receipt · Product destinations in audit history'
+    : 'Invoice Reversal Receipt · Supabase V2'}
+</div>
+
+
+<div class="receipt-meta">
+
+
+  <div class="receipt-box">
+
+    <span>
+      Invoice No.
+    </span>
+
+    <strong>
+      ${esc(result.invoiceNo)}
+    </strong>
+
+  </div>
+
+
+  <div class="receipt-box">
+
+    <span>
+      Reversal Date
+    </span>
+
+    <strong>
+      ${esc(returnDate.value)}
+    </strong>
+
+  </div>
+
+
+  <div class="receipt-box">
+
+    <span>
+      Reversal Type
+    </span>
+
+    <strong>
+      ${esc(returnType.value)}
+    </strong>
+
+  </div>
+
+
+</div>
+
+
+<table class="receipt-table">
+
+  <thead>
+
+    <tr>
+
+      <th>
+        Return ID
+      </th>
+
+      <th>
+        Product
+      </th>
+
+      <th>
+        Qty
+      </th>
+
+      <th>
+        Stock Source
+      </th>
+
+      ${result.destinationMode === 'POST_CLOSE' ? '<th>Destination</th>' : ''}
+
+      <th>
+        Amount
+      </th>
+
+    </tr>
+
+  </thead>
+
+
+  <tbody>
+
+    ${
+
+      returns
+        .map(
+          row => `
+
+<tr>
+
+  <td>
+    ${esc(row.returnId)}
+  </td>
+
+  <td>
+    ${esc(row.productName)}
+  </td>
+
+  <td style="text-align:center">
+    ${fmtQty(row.qty)}
+  </td>
+
+  <td>
+    ${esc(sourceLabel(row.stockAllocations))}
+  </td>
+
+  ${result.destinationMode === 'POST_CLOSE'
+     ? '<td>' + esc((Array.isArray(row.destinations) ? row.destinations : []).map(d =>
+       d.productCode + ' → ' + (d.destinationType === 'WAREHOUSE' ? 'Warehouse' : 'Batch '+d.batchId)
+     ).join(' | ')) + '</td>' : ''}
+
+  <td style="text-align:right">
+    ${money(row.amount)}
+  </td>
+
+</tr>
+
+`
+        )
+        .join('')
+
+    }
+
+  </tbody>
+
+</table>
+
+
+<div class="receipt-total">
+
+  <span>
+    Total Reversal
+  </span>
+
+  <span>
+    ${money(result.totalAmount)}
+  </span>
+
+</div>
+
+
+<div
+  style="
+    margin-top:15px;
+    padding:9px 10px;
+    border-radius:8px;
+    background:#eef8f3;
+    color:#176b4b;
+    font-size:10px;
+    font-weight:700;
+  "
+>
+${result.destinationMode === 'POST_CLOSE'
+  ? 'Original Closed Batch preserved; all stock destinations and invoice accounting were recorded atomically.'
+  : 'Stock restoration and accounting reversal were processed atomically by Supabase.'}
+</div>
+
+`;
+
+
+    receiptModal
+      .classList
+      .add(
+        'open'
+      );
+
+  }
+
+
+
+  function closeReceipt() {
+
+    receiptModal
+      .classList
+      .remove(
+        'open'
+      );
+
+  }
+
+
+
+  /* ==========================================================
+     CLEAR
+     ========================================================== */
+
+  function hideInvoice() {
+
+    invoiceCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    productsCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    reversalCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    productRows.innerHTML =
+      '';
+
+
+    state.lineMap.clear();
+    state.postcloseConfig = null;
+    state.postcloseError = '';
+
+  }
+
+
+
+  function clearAll() {
+
+    state.detail =
+      null;
+
+
+    state.selectedInvoiceId =
+      '';
+
+
+    invoiceNoInput.value =
+      '';
+
+
+    reasonInput.value =
+      '';
+
+
+    noteInput.value =
+      '';
+
+
+    returnType.value =
+      'Partial Reversal';
+
+
+    returnDate.value =
+      todayLocal();
+
+
+    reversalTotal.textContent =
+      '$0.00';
+
+
+    hideInvoice();
+
+    hideStatus();
+
+  }
+
+
+
+  /* ==========================================================
+     EVENTS
+     ========================================================== */
+
+  invoiceNoInput.addEventListener(
+
+    'focus',
+
+    openDropdown
+
+  );
+
+
+  invoiceNoInput.addEventListener(
+
+    'input',
+
+    function () {
+
+      scheduleInvoiceSearch();
+
+      invoiceDropdown.classList.add('open');
+
+    }
+
+  );
+
+
+  invoiceNoInput.addEventListener(
+
+    'keydown',
+
+    function (event) {
+
+      if (
+        event.key
+        ===
+        'Enter'
+      ) {
+
+        event.preventDefault();
+
+        loadInvoice();
+
+      }
+
+    }
+
+  );
+
+
+  invoiceDropdownBtn.addEventListener(
+
+    'click',
+
+    function () {
+
+      invoiceDropdown
+        .classList
+        .toggle(
+          'open'
+        );
+
+
+      if (
+        invoiceDropdown
+          .classList
+          .contains(
+            'open'
+          )
+      ) {
+
+        openDropdown();
+
+      }
+
+    }
+
+  );
+
+
+  invoiceDropdown.addEventListener(
+
+    'click',
+
+    function (event) {
+
+      const button =
+        event.target.closest(
+          '[data-invoice-no]'
+        );
+
+
+      if (!button) {
+
+        return;
+
+      }
+
+
+      const invoiceNo =
+        button.dataset.invoiceNo;
+
+
+      const invoiceId =
+        button.dataset.invoiceId
+        ||
+        '';
+
+
+      invoiceNoInput.value =
+        invoiceNo;
+
+
+      loadInvoice(
+        invoiceNo,
+        invoiceId
+      );
+
+    }
+
+  );
+
+
+  document.addEventListener(
+
+    'click',
+
+    function (event) {
+
+      if (
+        !document
+          .getElementById(
+            'invoicePicker'
+          )
+          .contains(
+            event.target
+          )
+      ) {
+
+        closeDropdown();
+
+      }
+
+    }
+
+  );
+
+
+  loadInvoiceBtn.addEventListener(
+    'click',
+    () => loadInvoice()
+  );
+
+
+  refreshInvoicesBtn.addEventListener(
+
+    'click',
+
+    async function () {
+
+      await loadRecentInvoices();
+
+      setStatus(
+        'Recent Supabase invoices refreshed.',
+        'success'
+      );
+
+    }
+
+  );
+
+
+  returnType.addEventListener(
+    'change',
+    applyReturnType
+  );
+
+
+  productRows.addEventListener(
+
+    'input',
+
+    function (event) {
+
+      const row =
+        event.target.closest(
+          'tr[data-line-id]'
+        );
+
+
+      if (!row) {
+
+        return;
+
+      }
+
+
+      if (
+        event.target.classList.contains(
+          'source-purchased-qty'
+        )
+
+        ||
+
+        event.target.classList.contains(
+          'source-zero-qty'
+        )
+      ) {
+
+        syncRow(
+          row,
+          true
+        );
+
+        return;
+
+      }
+
+
+      if (
+        event.target.classList.contains(
+          'reverse-qty'
+        )
+      ) {
+
+        syncRow(
+          row,
+          false
+        );
+
+      }
+
+    }
+
+  );
+
+
+  saveBtn.addEventListener(
+    'click',
+    executeReversal
+  );
+
+
+  clearBtn.addEventListener(
+    'click',
+    clearAll
+  );
+
+
+  document
+    .getElementById(
+      'receiptCloseBtn'
+    )
+    .addEventListener(
+      'click',
+      closeReceipt
+    );
+
+
+  document
+    .getElementById(
+      'receiptDoneBtn'
+    )
+    .addEventListener(
+      'click',
+      closeReceipt
+    );
+
+
+  document
+    .getElementById(
+      'receiptPrintBtn'
+    )
+    .addEventListener(
+
+      'click',
+
+      function () {
+
+        window.print();
+
+      }
+
+    );
+
+
+
+  /* ==========================================================
+     START
+     ========================================================== */
+
+  async function start() {
+
+    returnDate.value =
+      todayLocal();
+
+
+    try {
+
+
+      await A.ensureSession();
+
+
+      const profile =
+        await A.accessProfile();
+
+
+      const displayName =
+
+        profile?.staff?.staffName
+
+        ||
+
+        profile?.user?.email
+
+        ||
+
+        'Signed In';
+
+
+      userBadge.textContent =
+        'SUPABASE V2 · '
+        +
+        displayName;
+
+
+      await loadRecentInvoices();
+
+
+      const params =
+        new URLSearchParams(
+          location.search
+        );
+
+
+      const invoiceNo =
+        clean(
+          params.get(
+            'invoice'
+          )
+        );
+
+
+      if (invoiceNo) {
+
+        const invoiceId =
+          clean(
+            params.get(
+              'invoiceId'
+            )
+          );
+
+
+        invoiceNoInput.value =
+          invoiceNo;
+
+
+        await loadInvoice(
+          invoiceNo,
+          invoiceId
+        );
+
+      }
+
+
+    } catch (error) {
+
+
+      setStatus(
+
+        error?.message
+        ||
+        'Please sign in to BIG BROTHER first.',
+
+        'error'
+
+      );
+
+
+    }
+
+  }
+
+
+  start();
+
+
+})();
+
+</script>
+
+
+</body>
+
+</html>
++cl.alreadyDeductedUSD;
+          closeSelect.appendChild(op);
+        }
+      }catch(e){
+        closeSelect.innerHTML='<option value="">Closed collection lookup unavailable</option>';
+      }
       document.getElementById('directRefundCurrency').value=cur;
       document.getElementById('directRefundRate').value=cur==='KHR'?'4000':'1';
       document.getElementById('directRefundBalance').textContent=
