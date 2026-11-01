@@ -1570,7 +1570,7 @@ button:disabled{
 
 
 <script
-  src="supabase-invoice-reversal-adapter.js?v=20261101-bank-close-refund3"
+  src="supabase-invoice-reversal-adapter.js?v=20261101-salesman-refund1"
 ></script>
 
 </head>
@@ -2856,6 +2856,7 @@ button:disabled{
             <div class="field"><label>Refund Method</label><select id="directRefundMethod">
               <option value="DAILY_CASH">Deduct Daily Cash Balance</option>
               <option value="BANK">Bank Refund (outgoing)</option>
+              <option value="SALESMAN_COLLECTION">Deduct Salesman Collection</option>
             </select></div>
             <div class="field"><label>Refund Amount</label><input id="directRefundAmount" type="number" min="0" step="any" placeholder="0.00"></div>
             <div class="field"><label>Refund Currency</label><input id="directRefundCurrency" readonly></div>
@@ -2931,13 +2932,13 @@ button:disabled{
     if(!(amount>0)){alert('Enter a positive refund amount.');return;}
     if(currency==='KHR' && !(rate>0)){alert('Enter the KHR exchange rate.');return;}
     if(method==='BANK' && (!bankAccount||!bankTransactionId)){alert('Bank account and unique outgoing transaction ID required.');return;}
-    if(!confirm('Record an ACTUAL '+currency+' '+amount.toFixed(2)+' '+(method==='DAILY_CASH'?'Daily Cash deduction':'outgoing Bank refund')+' for '+inv.invoiceNo+'? This will NOT enter Daily Cash Collection.'))return;
+    if(!confirm('Record an ACTUAL '+currency+' '+amount.toFixed(2)+' '+(method==='DAILY_CASH'?'Daily Cash deduction':method==='BANK'?'outgoing Bank refund':'salesman collection deduction')+' for '+inv.invoiceNo+'? This will NOT enter Daily Cash Collection.'))return;
     const button=document.getElementById('directRefundSubmit'), message=document.getElementById('directRefundMessage');
     button.disabled=true;
     try{
-      const result=await A.directRefund({invoiceId:inv.invoiceId,method,currency,amount,exchangeRate:rate,bankAccount,bankTransactionId,note,closedCollectionId});
+      const result=method==='SALESMAN_COLLECTION' ? await A.salesmanRefund({invoiceId:inv.invoiceId,method,currency,amount,exchangeRate:rate,note}) : await A.directRefund({invoiceId:inv.invoiceId,method,currency,amount,exchangeRate:rate,bankAccount,bankTransactionId,note,closedCollectionId});
       if(!result?.success)throw Error(result?.error||'Refund not saved');
-      message.textContent='Refund '+result.refundId+' saved. Cash ledger: '+(result.cashLedgerId||'Bank refund register')+'.';
+      message.textContent='Refund '+result.refundId+' saved. Settlement: '+(method==='SALESMAN_COLLECTION'?'Available in salesman collection':result.cashLedgerId||'Bank refund register')+'.';
       await refreshDirectRefund();
     }catch(e){message.textContent='Refund failed: '+(e?.message||e);alert(message.textContent);}
     finally{
