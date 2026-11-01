@@ -12,7 +12,7 @@
 >
 
 <title>
-  BIG BROTHER — Invoice Reversal V2
+  BIG BROTHER — Invoice Reversal V3.0
 </title>
 
 
@@ -3227,7 +3227,7 @@ button:disabled{
     if (!products.length) return '<span class="line-error">Missing original product allocation</span>';
     const batches = Array.isArray(config.openBatches) ? config.openBatches : [];
     return '<div class="source-detail" style="font-weight:700;margin-bottom:6px">' +
-      'Original ' + esc(config.originalBatchId || '') + ' remains Closed</div>' +
+      'Original ' + esc(config.originalBatchId || '') + ' · return to Warehouse or another Open Batch</div>' +
       products.map(code => {
         const options = batches.filter(b =>
           (Array.isArray(b.products) ? b.products : []).includes(code)
@@ -4817,7 +4817,7 @@ ${state.postcloseConfig?.isPostClose
 
 
       console.error(
-        'Invoice Reversal V2 save failed:',
+        'Invoice Reversal V3.0 save failed:',
         error
       );
 
