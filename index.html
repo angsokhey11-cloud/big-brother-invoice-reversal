@@ -2926,7 +2926,10 @@ button:disabled{
       message.textContent='Refund '+result.refundId+' saved. Cash ledger: '+(result.cashLedgerId||'Bank refund register')+'.';
       await refreshDirectRefund();
     }catch(e){message.textContent='Refund failed: '+(e?.message||e);alert(message.textContent);}
-    finally{button.disabled=false;}
+    finally{
+      const remaining=Number(document.getElementById('directRefundAmount').value||0);
+      button.disabled=!(remaining>0);
+    }
   }
 
   function renderInvoice() {
