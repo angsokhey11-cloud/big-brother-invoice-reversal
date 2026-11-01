@@ -471,6 +471,13 @@
 
 
 
+  async function refundStatus(invoiceId) {
+    return rpc('bb_invoice_direct_refund_status_v1',{p_invoice_id:String(invoiceId||'').trim()});
+  }
+  async function directRefund(payload) {
+    return rpc('bb_invoice_direct_refund_save_v1',{p_payload:payload||{}});
+  }
+
   async function postcloseOptions(invoiceId) {
     return rpc('bb_invoice_reversal_postclose_options_v1', {
       p_invoice_id: String(invoiceId || '').trim()
