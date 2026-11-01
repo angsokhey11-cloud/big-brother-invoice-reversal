@@ -477,6 +477,9 @@
   async function closedRefundOptions(invoiceId) {
     return rpc('bb_invoice_refund_closed_options_v1',{p_invoice_id:String(invoiceId||'').trim()});
   }
+  async function salesmanRefund(payload) {
+    return rpc('bb_invoice_salesman_refund_save_v1',{p_payload:payload||{}});
+  }
   async function directRefund(payload) {
     return rpc('bb_invoice_direct_refund_with_close_v1',{p_payload:payload||{}});
   }
@@ -731,6 +734,8 @@
     refundStatus,
 
     directRefund,
+
+    salesmanRefund,
 
     closedRefundOptions,
 
