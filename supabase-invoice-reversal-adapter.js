@@ -474,8 +474,11 @@
   async function refundStatus(invoiceId) {
     return rpc('bb_invoice_direct_refund_status_v1',{p_invoice_id:String(invoiceId||'').trim()});
   }
+  async function closedRefundOptions(invoiceId) {
+    return rpc('bb_invoice_refund_closed_options_v1',{p_invoice_id:String(invoiceId||'').trim()});
+  }
   async function directRefund(payload) {
-    return rpc('bb_invoice_direct_refund_save_v1',{p_payload:payload||{}});
+    return rpc('bb_invoice_direct_refund_with_close_v1',{p_payload:payload||{}});
   }
 
   async function postcloseOptions(invoiceId) {
@@ -728,6 +731,8 @@
     refundStatus,
 
     directRefund,
+
+    closedRefundOptions,
 
     history,
 
