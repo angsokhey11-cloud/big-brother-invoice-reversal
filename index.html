@@ -4656,8 +4656,8 @@ ${state.postcloseConfig?.isPostClose
 
 
     if (invoice.batchId && state.postcloseError) {
-      alert('Post-close destination function unavailable: ' + state.postcloseError +
-        '\nRun Code Sync and the Local SQL migration if using Local Brain.');
+      alert('Batch destination lookup unavailable: ' + state.postcloseError +
+        '\nPlease reload the Cloud Invoice Reversal page.');
       return;
     }
 
@@ -4712,7 +4712,10 @@ ${state.postcloseConfig?.isPostClose
         +
 
         destinationSummary + (isPostClose
-          ? '\n\nOriginal CLOSED Batch will remain unchanged. Check stock is physically at the destination.'
+          ? '\n\nStock is restored ONLY to the selected destination. Verify the physical return.'
+          : '') +
+        (num(invoice.amountPaid)>EPS
+          ? '\n\nPAYMENT WARNING: The invoice has a recorded payment. This reversal does NOT send a cash/bank refund. Approved collection records remain historical; issue and record any actual refund separately.'
           : '')
 
       );
@@ -4795,7 +4798,9 @@ ${state.postcloseConfig?.isPostClose
 
       setStatus(
 
-        'Invoice Reversal saved successfully in Supabase V2. Stock source restoration completed.',
+        num(invoice.amountPaid)>EPS
+          ? 'Reversal saved with stock restoration. Cash/bank refund NOT issued; record any actual refund separately.'
+          : 'Reversal saved with stock restoration and historical COGS.',
 
         'success'
 
