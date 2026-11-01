@@ -1570,7 +1570,7 @@ button:disabled{
 
 
 <script
-  src="supabase-invoice-reversal-adapter.js?v=20261021-postclose-routing1"
+  src="supabase-invoice-reversal-adapter.js?v=20261101-direct-refund1"
 ></script>
 
 </head>
@@ -2816,6 +2816,7 @@ button:disabled{
         }
       }
       renderInvoice();
+      await refreshDirectRefund();
       setStatus(
         state.postcloseError
           ? 'Invoice loaded; post-close destination lookup unavailable: ' + state.postcloseError
@@ -2838,6 +2839,95 @@ button:disabled{
   /* ==========================================================
      RENDER INVOICE
      ========================================================== */
+
+
+  // Direct Refund is a separate settlement, never an invoice cash collection.
+  let refundViewSequence=0;
+  function ensureDirectRefundPanel(){
+    if(document.getElementById('directRefundPanel'))return;
+    const anchor=document.getElementById('reversalCard');
+    if(!anchor)return;
+    anchor.insertAdjacentHTML('afterend',`
+      <section class="card hidden" id="directRefundPanel">
+        <div class="card-title"><span>↩ Direct Customer Refund — NOT Daily Cash Collection</span></div>
+        <div class="card-body">
+          <div id="directRefundBalance" class="source-detail" style="font-size:12px;margin-bottom:12px">Load an invoice to see refund balance.</div>
+          <div class="controls-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+            <div class="field"><label>Refund Method</label><select id="directRefundMethod">
+              <option value="DAILY_CASH">Deduct Daily Cash Balance</option>
+              <option value="BANK">Bank Refund (outgoing)</option>
+            </select></div>
+            <div class="field"><label>Refund Amount</label><input id="directRefundAmount" type="number" min="0" step="any" placeholder="0.00"></div>
+            <div class="field"><label>Refund Currency</label><input id="directRefundCurrency" readonly></div>
+            <div class="field"><label>Exchange Rate (KHR)</label><input id="directRefundRate" type="number" min="1" step="any" value="1"></div>
+            <div class="field" id="directRefundBankBox" style="display:none"><label>Company Bank Account</label><input id="directRefundBank" placeholder="Account used for outgoing refund"></div>
+            <div class="field" id="directRefundTxBox" style="display:none"><label>Bank Transaction ID</label><input id="directRefundTx" placeholder="Unique outgoing transaction reference"></div>
+          </div>
+          <div class="field" style="margin-top:8px"><label>Refund Note</label><input id="directRefundNote" placeholder="Reason / recipient details"></div>
+          <button type="button" class="save-btn" id="directRefundSubmit" style="margin-top:12px">Record Direct Refund</button>
+          <div id="directRefundMessage" class="source-detail" style="margin-top:10px"></div>
+        </div>
+      </section>`);
+    const method=document.getElementById('directRefundMethod');
+    method.addEventListener('change',()=>{
+      const bank=method.value==='BANK';
+      document.getElementById('directRefundBankBox').style.display=bank?'block':'none';
+      document.getElementById('directRefundTxBox').style.display=bank?'block':'none';
+    });
+    document.getElementById('directRefundSubmit').addEventListener('click',saveDirectRefund);
+  }
+  async function refreshDirectRefund(){
+    ensureDirectRefundPanel();
+    const card=document.getElementById('directRefundPanel');
+    const id=state.detail?.invoice?.invoiceId;
+    if(!card || !id){if(card)card.classList.add('hidden');return;}
+    const seq=++refundViewSequence;
+    card.classList.remove('hidden');
+    const msg=document.getElementById('directRefundMessage');
+    try{
+      const status=await A.refundStatus(id);
+      if(seq!==refundViewSequence)return;
+      if(!status?.success)throw Error(status?.error||'Refund status unavailable');
+      const cur=status.currency||'USD';
+      document.getElementById('directRefundCurrency').value=cur;
+      document.getElementById('directRefundRate').value=cur==='KHR'?'4000':'1';
+      document.getElementById('directRefundBalance').textContent=
+        'Reversed: '+cur+' '+status.reversedAmount+
+        ' · Paid: '+cur+' '+status.invoicePaid+
+        ' · Already Refunded: '+cur+' '+status.refundedAmount+
+        ' · Available Direct Refund: '+cur+' '+status.remainingRefund;
+      document.getElementById('directRefundAmount').value=Number(status.remainingRefund)>0?status.remainingRefund:'';
+      document.getElementById('directRefundSubmit').disabled=!(Number(status.remainingRefund)>0);
+      msg.textContent='Cash refunds deduct Daily Cash Balance only. Bank refunds create a separate outgoing refund record. Neither enters Daily Cash Collection.';
+    }catch(e){
+      document.getElementById('directRefundSubmit').disabled=true;
+      msg.textContent='Refund status could not be loaded: '+(e?.message||e);
+    }
+  }
+  async function saveDirectRefund(){
+    const inv=state.detail?.invoice;
+    if(!inv)return;
+    const method=document.getElementById('directRefundMethod').value;
+    const amount=Number(document.getElementById('directRefundAmount').value);
+    const currency=document.getElementById('directRefundCurrency').value;
+    const rate=Number(document.getElementById('directRefundRate').value);
+    const bankAccount=document.getElementById('directRefundBank').value.trim();
+    const bankTransactionId=document.getElementById('directRefundTx').value.trim();
+    const note=document.getElementById('directRefundNote').value.trim();
+    if(!(amount>0)){alert('Enter a positive refund amount.');return;}
+    if(currency==='KHR' && !(rate>0)){alert('Enter the KHR exchange rate.');return;}
+    if(method==='BANK' && (!bankAccount||!bankTransactionId)){alert('Bank account and unique outgoing transaction ID required.');return;}
+    if(!confirm('Record an ACTUAL '+currency+' '+amount.toFixed(2)+' '+(method==='DAILY_CASH'?'Daily Cash deduction':'outgoing Bank refund')+' for '+inv.invoiceNo+'? This will NOT enter Daily Cash Collection.'))return;
+    const button=document.getElementById('directRefundSubmit'), message=document.getElementById('directRefundMessage');
+    button.disabled=true;
+    try{
+      const result=await A.directRefund({invoiceId:inv.invoiceId,method,currency,amount,exchangeRate:rate,bankAccount,bankTransactionId,note});
+      if(!result?.success)throw Error(result?.error||'Refund not saved');
+      message.textContent='Refund '+result.refundId+' saved. Cash ledger: '+(result.cashLedgerId||'Bank refund register')+'.';
+      await refreshDirectRefund();
+    }catch(e){message.textContent='Refund failed: '+(e?.message||e);alert(message.textContent);}
+    finally{button.disabled=false;}
+  }
 
   function renderInvoice() {
 
