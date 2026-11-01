@@ -2820,7 +2820,7 @@ button:disabled{
         state.postcloseError
           ? 'Invoice loaded; post-close destination lookup unavailable: ' + state.postcloseError
           : state.postcloseConfig?.isPostClose
-            ? 'Closed original Batch detected. Choose a destination for each product, then submit ONE reversal.'
+            ? 'Batch reversal: choose a destination for each returned product, then submit ONE reversal.'
             : 'Invoice loaded from Supabase V2. Enter the quantity you want to reverse.',
         state.postcloseError ? 'error' : 'success'
       );
@@ -3277,9 +3277,8 @@ button:disabled{
 
 
     if (
-      mode
-      ===
-      'BATCH'
+      mode === 'BATCH' &&
+      !(num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS)
     ) {
 
       return `
@@ -3290,7 +3289,7 @@ button:disabled{
 
 <div class="source-detail">
 ${state.postcloseConfig?.isPostClose
-    ? 'Post-close return: original Batch remains unchanged.'
+    ? 'Batch return: restore each product to its selected destination.'
     : 'Existing Batch source allocation is restored automatically.'}
 </div>
 
@@ -3423,15 +3422,14 @@ ${chips}
 
 
     if (
-      mode
-      ===
-      'BATCH'
+      mode === 'BATCH' &&
+      !(num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS)
     ) {
 
       return `
 
 <span class="source-chip source-batch">
-  AUTO BATCH RETURN
+  LEGACY BATCH RETURN
 </span>
 
 <div class="source-detail">
@@ -3523,7 +3521,7 @@ ${state.postcloseConfig?.isPostClose
 
 
 <div class="source-detail">
-  Mixed Direct Sale: source quantities control the Reverse Qty.
+  Mixed stock-source sale: source quantities control the Reverse Qty.
 </div>
 
 `;
@@ -3573,36 +3571,12 @@ ${state.postcloseConfig?.isPostClose
      ========================================================== */
 
   function isMixedDirect(item) {
-
-    return (
-
-      clean(
-        item.saleMode
-      )
-      .toUpperCase()
-      ===
-      'DIRECT'
-
-      &&
-
-      num(
-        item.remainingPurchasedQty
-      )
-      >
-      EPS
-
-      &&
-
-      num(
-        item.remainingZeroCostQty
-      )
-      >
-      EPS
-
-    );
-
+    const mode=clean(item.saleMode).toUpperCase();
+    const eligible=mode==='DIRECT' ||
+      (mode==='BATCH' && clean(item.entryType||'EXACT').toUpperCase()==='EXACT' &&
+       num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS);
+    return eligible && num(item.remainingPurchasedQty)>EPS && num(item.remainingZeroCostQty)>EPS;
   }
-
 
 
   function syncRow(
@@ -4396,9 +4370,8 @@ ${state.postcloseConfig?.isPostClose
 
 
         if (
-          mode
-          ===
-          'DIRECT'
+          mode === 'DIRECT' ||
+          (mode === 'BATCH' && num(item.originalPurchasedQty)+num(item.originalZeroCostQty)>EPS)
         ) {
 
 
@@ -4969,7 +4942,7 @@ ${state.postcloseConfig?.isPostClose
 
 <div class="receipt-sub">
   ${result.destinationMode === 'POST_CLOSE'
-    ? 'Post-Close Invoice Reversal Receipt · Product destinations in audit history'
+    ? 'Batch Invoice Reversal Receipt · Product destinations in audit history'
     : 'Invoice Reversal Receipt · Supabase V2'}
 </div>
 
